@@ -2,24 +2,41 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8">
+  <!-- WICHTIG FÜR MOBILE GERÄTE: Viewport-Anpassung -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  
   <title>Live APRS Karte</title>
   
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
+    /* Globales Reset für korrekte Breitenberechnung */
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 10px;
+      background-color: #0f172a;
+      font-family: Arial, sans-serif;
+    }
+
     #aprs-container {
       width: 100%;
       max-width: 900px;
       margin: 0 auto;
-      font-family: Arial, sans-serif;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
     }
 
     #aprs-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 10px 15px;
+      padding: 12px 15px;
       background-color: #0f172a;
       color: #ffffff;
       border-top-left-radius: 8px;
@@ -32,14 +49,16 @@
       padding: 10px 15px;
       background-color: #1e293b;
       border-bottom: 1px solid #334155;
+      flex-wrap: wrap;
     }
 
     #search-input {
       flex: 1;
-      padding: 8px 12px;
-      font-size: 14px;
+      min-width: 200px;
+      padding: 10px 12px;
+      font-size: 16px; /* 16px verhindert autom. Zoom auf iPhones */
       border: 1px solid #475569;
-      border-radius: 4px;
+      border-radius: 6px;
       background-color: #0f172a;
       color: #ffffff;
       text-transform: uppercase;
@@ -50,16 +69,20 @@
       border-color: #38bdf8;
     }
 
-    .search-btn {
-      padding: 8px 16px;
+    .search-btn, .reset-btn {
+      padding: 10px 18px;
       font-size: 14px;
       font-weight: bold;
       color: #ffffff;
-      background-color: #2563eb;
       border: none;
-      border-radius: 4px;
+      border-radius: 6px;
       cursor: pointer;
       transition: background-color 0.2s;
+      min-height: 42px; /* Bessere Touch-Trefferfläche */
+    }
+
+    .search-btn {
+      background-color: #2563eb;
     }
 
     .search-btn:hover {
@@ -67,16 +90,8 @@
     }
 
     .reset-btn {
-      padding: 8px 16px;
-      font-size: 14px;
-      font-weight: bold;
-      color: #ffffff;
       background-color: #475569;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
       display: none;
-      transition: background-color 0.2s;
     }
 
     .reset-btn:hover {
@@ -112,11 +127,14 @@
       100% { transform: scale(0.95); opacity: 0.8; }
     }
 
+    /* Dynamische Höhenanpassung für Mobile */
     #map {
-      height: 520px;
+      height: 50vh;
+      min-height: 320px;
+      max-height: 520px;
       width: 100%;
-      border: 1px solid #cbd5e1;
-      border-bottom: none;
+      border-left: 1px solid #cbd5e1;
+      border-right: 1px solid #cbd5e1;
       z-index: 1;
     }
 
@@ -134,8 +152,8 @@
       justify-content: space-around;
       align-items: center;
       flex-wrap: wrap;
-      gap: 15px;
-      padding: 10px 15px;
+      gap: 12px;
+      padding: 12px 15px;
     }
 
     .control-row.top-border {
@@ -149,24 +167,25 @@
       color: #64748b;
       font-weight: bold;
       width: 100%;
-      margin-bottom: -5px;
+      margin-bottom: -2px;
     }
 
     .filter-item {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 13px;
+      font-size: 14px;
       font-weight: bold;
       color: #334155;
       cursor: pointer;
       user-select: none;
+      padding: 4px 0; /* Erleichtert Finger-Taps */
     }
 
     .filter-item input[type="checkbox"],
     .filter-item input[type="radio"] {
-      width: 16px;
-      height: 16px;
+      width: 20px; /* Größere Checkboxen für Mobile */
+      height: 20px;
       cursor: pointer;
       accent-color: #0f172a;
     }
@@ -228,7 +247,6 @@
       display: flex;
       align-items: center;
       gap: 15px;
-      box-sizing: border-box;
       box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
     }
 
@@ -237,6 +255,7 @@
       height: 20px;
       border-radius: 50%;
       display: inline-block;
+      flex-shrink: 0;
       transition: all 0.3s ease;
     }
 
@@ -256,6 +275,51 @@
       font-weight: bold;
       letter-spacing: 0.5px;
     }
+
+    /* -------------------------------------------------------------------------- */
+    /* MOBILES LAYOUT (SPEZIELL FÜR SMARTPHONES unter 600px BREITE)               */
+    /* -------------------------------------------------------------------------- */
+    @media (max-width: 600px) {
+      body {
+        padding: 5px;
+      }
+
+      #aprs-header {
+        padding: 10px;
+        font-size: 14px;
+      }
+
+      #aprs-search-bar {
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      #search-input {
+        width: 100%;
+      }
+
+      .search-btn, .reset-btn {
+        width: 100%;
+      }
+
+      .control-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+      }
+
+      .filter-item {
+        width: 100%;
+      }
+
+      #tg-status-container {
+        padding: 10px 12px;
+      }
+
+      .tg-status-text {
+        font-size: 13px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -270,7 +334,7 @@
   </div>
 
   <div id="aprs-search-bar">
-    <input type="text" id="search-input" placeholder="Call-Fragment suchen (z.B. KAL oder DL)..." onkeyup="if(event.key==='Enter') searchCallsign()">
+    <input type="text" id="search-input" placeholder="Call-Fragment suchen..." onkeyup="if(event.key==='Enter') searchCallsign()">
     <button class="search-btn" onclick="searchCallsign()">Suchen</button>
     <button id="reset-search-btn" class="reset-btn" onclick="resetSearch()">Zurück zur Übersicht</button>
   </div>
@@ -330,7 +394,7 @@
 </div>
 
 <!-- Automatische Anzeige des Datei-Änderungsstands -->
-<div style="width: 100%; max-width: 900px; margin: 4px auto 0 auto; text-align: right; font-size: 11px; color: #64748b; padding-right: 4px;">
+<div style="width: 100%; max-width: 900px; margin: 4px auto 0 auto; text-align: right; font-size: 11px; color: #94a3b8; padding-right: 4px;">
     Stand des Codes: <span id="file-version">Lade...</span>
 </div>
 
