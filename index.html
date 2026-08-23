@@ -345,7 +345,6 @@
   <div id="aprs-controls">
     <div class="control-row">
       <div class="control-group-title">Anzeigemodus</div>
-      <!-- Nur noch zwei Optionen: Livedarstellung (Standard, 1h) und 24h Historie -->
       <label class="filter-item">
         <input type="radio" id="mode-live" name="time-mode" value="live" checked onchange="handleModeChange()">
         Livedarstellung
@@ -419,7 +418,6 @@
   let activeSearchCall = null;
   let previousMapView = null;
   let currentActiveTalker = null;
-  let activityTimeout = null;
 
   const connectedRelays = [
     { callsign: "DL0SL", lat: 48.841667, lon: 12.980556 },
@@ -773,7 +771,6 @@
     const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
     clearAllLayers();
 
-    // Modus 'live' entspricht nun der 1-Stunden-Historie als Livedarstellung
     const hours = (selectedMode === '24h') ? 24 : 1;
     const ledIndicator = document.getElementById('led-indicator');
     const statusText = document.getElementById('status-text');
@@ -841,8 +838,10 @@
   }, 15000);
 </script>
 
-<!-- Skript für die Status-Leiste der TG 313 -->
+<!-- Skript für die Status-Leiste der TG 313 (mit dauerhaftem Grün während des Tastens) -->
 <script>
+let lastActiveTime = Date.now();
+
 async function updateTGStatus() {
     try {
         const response = await fetch('https://fm-proxy-e2dz.onrender.com/api/tg/313');
@@ -865,10 +864,8 @@ async function updateTGStatus() {
         }
 
         if (newTalker) {
-            if (activityTimeout) clearTimeout(activityTimeout);
-
-            lamp.className = 'tg-status-lamp active';
-            text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313`;
+            // Sender aktiv -> Zeitstempel erneuern und Lampe dauerhaft auf Grün halten
+            lastActiveTime = Date.now();
 
             if (currentActiveTalker !== newTalker) {
                 currentActiveTalker = newTalker;
@@ -881,17 +878,25 @@ async function updateTGStatus() {
                 renderRelayStations();
             }
 
-            activityTimeout = setTimeout(() => {
-                currentActiveTalker = null;
+            lamp.className = 'tg-status-lamp active';
+            text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313`;
+
+        } else {
+            // Kein aktiver Talker. Mit einem Puffer von 4 Sekunden absichern gegen kurze Abfrageschwankungen.
+            if (Date.now() - lastActiveTime > 4000) {
+                if (currentActiveTalker !== null) {
+                    currentActiveTalker = null;
+                    
+                    Object.keys(markers).forEach(cs => {
+                        const cat = stationCategories[cs] || 'other';
+                        markers[cs].setIcon(createCustomIcon(cat, cs));
+                    });
+                    renderRelayStations();
+                }
+
                 lamp.className = 'tg-status-lamp inactive';
                 text.innerText = "TG 313 inaktiv";
-
-                Object.keys(markers).forEach(cs => {
-                    const cat = stationCategories[cs] || 'other';
-                    markers[cs].setIcon(createCustomIcon(cat, cs));
-                });
-                renderRelayStations();
-            }, 5000);
+            }
         }
 
     } catch (error) {
