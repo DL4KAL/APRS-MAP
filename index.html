@@ -11,15 +11,6 @@
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://DL4KAL.github.io/APRS-MAP/">
   
-  <!-- restlicher Code (CSS, Leaflet etc.) -->
-</head>
-  
-  <meta charset="UTF-8">
-  <!-- WICHTIG FÜR MOBILE GERÄTE: Viewport-Anpassung -->
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
-  <title>Live APRS Karte</title>
-  
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
@@ -192,12 +183,12 @@
       color: #334155;
       cursor: pointer;
       user-select: none;
-      padding: 4px 0; /* Erleichtert Finger-Taps */
+      padding: 4px 0;
     }
 
     .filter-item input[type="checkbox"],
     .filter-item input[type="radio"] {
-      width: 20px; /* Größere Checkboxen für Mobile */
+      width: 20px;
       height: 20px;
       cursor: pointer;
       accent-color: #0f172a;
@@ -289,9 +280,6 @@
       letter-spacing: 0.5px;
     }
 
-    /* -------------------------------------------------------------------------- */
-    /* MOBILES LAYOUT (SPEZIELL FÜR SMARTPHONES unter 600px BREITE)               */
-    /* -------------------------------------------------------------------------- */
     @media (max-width: 600px) {
       body {
         padding: 5px;
@@ -362,10 +350,6 @@
         Livedarstellung
       </label>
       <label class="filter-item">
-        <input type="radio" id="mode-1h" name="time-mode" value="1h" onchange="handleModeChange()">
-        1 Stunde Historie
-      </label>
-      <label class="filter-item">
         <input type="radio" id="mode-24h" name="time-mode" value="24h" onchange="handleModeChange()">
         24 Stunden Historie
       </label>
@@ -412,7 +396,6 @@
 </div>
 
 <script>
-  // Automatische Ermittlung des Code-Stands über den Datei-Zeitstempel
   const modDate = new Date(document.lastModified);
   const options = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' };
   document.getElementById('file-version').innerText = modDate.toLocaleDateString('de-DE', options) + ' Uhr';
@@ -437,7 +420,6 @@
   let currentActiveTalker = null;
   let activityTimeout = null;
 
-  // --- ABSCHNITT: Verbundene Relaisfunkstellen TG 313 ---
   const connectedRelays = [
     { callsign: "DL0SL", lat: 48.841667, lon: 12.980556 },
     { callsign: "DL0IAW", lat: 49.18684, lon: 7.36953 }
@@ -507,7 +489,6 @@
       }
     });
   }
-  // -----------------------------------------------------
 
   function toggleTracksVisibility() {
     saveUserSettings();
@@ -791,126 +772,47 @@
     const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
     clearAllLayers();
 
-    if (selectedMode === 'live') {
-      fetchAprsData();
-    } else {
-      const hours = (selectedMode === '1h') ? 1 : 24;
-      const ledIndicator = document.getElementById('led-indicator');
-      const statusText = document.getElementById('status-text');
-
-      try {
-        const response = await fetch(`${BASE_URL}/history.json?hours=${hours}`);
-        if (!response.ok) throw new Error("HTTP Fehler " + response.status);
-
-        const historyData = await response.json();
-        
-        ledIndicator.classList.add('online');
-        statusText.innerText = `HISTORIE (${hours}h)`;
-
-        const grouped = {};
-        historyData.forEach(pt => {
-          if (!grouped[pt.callsign]) grouped[pt.callsign] = [];
-          grouped[pt.callsign].push(pt);
-        });
-
-        Object.keys(grouped).forEach(callsign => {
-          const pts = grouped[callsign];
-          const lastPt = pts[pts.length - 1];
-          const category = detectCategory(lastPt.symbol || '', '');
-          stationCategories[callsign] = category;
-
-          const latLons = pts.map(p => [p.lat, p.lon]);
-
-          const marker = L.marker([lastPt.lat, lastPt.lon], { icon: createCustomIcon(category, callsign) })
-            .bindPopup(`
-              <div class="custom-popup">
-                <h4 style="margin:0 0 5px 0;">${callsign}</h4>
-                <p style="margin:0; font-size: 13px;"><b>Position:</b> ${lastPt.lat.toFixed(5)}, ${lastPt.lon.toFixed(5)}</p>
-                <p style="margin:2px 0 0 0; font-size: 12px; color: #64748b;">Punkte: ${pts.length}</p>
-              </div>
-            `);
-
-          markers[callsign] = marker;
-
-          if (latLons.length >= 2) {
-            updatePolyline(callsign, latLons, '#2563eb');
-          }
-        });
-
-        applyCategoryFilter();
-
-      } catch (error) {
-        console.error("Fehler beim Abrufen der Historie:", error);
-        ledIndicator.classList.remove('online');
-        statusText.innerText = "OFFLINE";
-      }
-    }
-  }
-
-  async function fetchAprsData() {
-    if (activeSearchCall) return;
-
+    // Modus 'live' entspricht nun der 1-Stunden-Historie (Livedarstellung als Standard)
+    const hours = (selectedMode === '24h') ? 24 : 1;
     const ledIndicator = document.getElementById('led-indicator');
     const statusText = document.getElementById('status-text');
 
     try {
-      const response = await fetch(`${BASE_URL}/data.json?t=${Date.now()}`);
+      const response = await fetch(`${BASE_URL}/history.json?hours=${hours}`);
       if (!response.ok) throw new Error("HTTP Fehler " + response.status);
 
-      const stations = await response.json();
-
+      const historyData = await response.json();
+      
       ledIndicator.classList.add('online');
-      statusText.innerText = `LIVE (${stations.length})`;
+      statusText.innerText = (selectedMode === '24h') ? "HISTORIE (24h)" : "LIVE (1h)";
 
-      stations.forEach(station => {
-        const callsign = station.callsign;
-        const lat = station.lat;
-        const lon = station.lon;
-        const symString = station.sym || station.symbol || '';
-        const comment = station.comment || '';
+      const grouped = {};
+      historyData.forEach(pt => {
+        if (!grouped[pt.callsign]) grouped[pt.callsign] = [];
+        grouped[pt.callsign].push(pt);
+      });
 
-        if (!lat || !lon) return;
-
-        const category = detectCategory(symString, comment);
+      Object.keys(grouped).forEach(callsign => {
+        const pts = grouped[callsign];
+        const lastPt = pts[pts.length - 1];
+        const category = detectCategory(lastPt.symbol || '', '');
         stationCategories[callsign] = category;
 
-        if (!localTracks[callsign]) {
-          localTracks[callsign] = [];
-        }
-        
-        const currentPoints = localTracks[callsign];
-        const lastPoint = currentPoints[currentPoints.length - 1];
+        const latLons = pts.map(p => [p.lat, p.lon]);
 
-        if (!lastPoint || lastPoint[0] !== lat || lastPoint[1] !== lon) {
-          currentPoints.push([lat, lon]);
-        }
+        const marker = L.marker([lastPt.lat, lastPt.lon], { icon: createCustomIcon(category, callsign) })
+          .bindPopup(`
+            <div class="custom-popup">
+              <h4 style="margin:0 0 5px 0;">${callsign}</h4>
+              <p style="margin:0; font-size: 13px;"><b>Position:</b> ${lastPt.lat.toFixed(5)}, ${lastPt.lon.toFixed(5)}</p>
+              <p style="margin:2px 0 0 0; font-size: 12px; color: #64748b;">Punkte: ${pts.length}</p>
+            </div>
+          `);
 
-        const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
-        if (selectedMode === 'live' && currentPoints.length >= 2) {
-          updatePolyline(callsign, currentPoints, '#dc2626');
-          if (document.getElementById('filter-tracks').checked && historyLines[callsign] && !map.hasLayer(historyLines[callsign])) {
-            historyLines[callsign].addTo(map);
-          }
-        }
+        markers[callsign] = marker;
 
-        const popupContent = `
-          <div class="custom-popup">
-            <h4 style="margin:0 0 5px 0;">${callsign}</h4>
-            <p style="margin:0; font-size: 13px;"><b>Position:</b> ${lat.toFixed(5)}, ${lon.toFixed(5)}</p>
-            <p style="margin:2px 0 0 0; font-size: 12px; color: #64748b;">Punkte in Spur: ${currentPoints.length}</p>
-            <p style="margin:4px 0 0 0; font-size: 12px; color: #64748b;">${comment || 'Kein Kommentar'}</p>
-          </div>
-        `;
-
-        if (markers[callsign]) {
-          markers[callsign].setLatLng([lat, lon]);
-          markers[callsign].setIcon(createCustomIcon(category, callsign));
-          markers[callsign].setPopupContent(popupContent);
-        } else {
-          const marker = L.marker([lat, lon], { icon: createCustomIcon(category, callsign) })
-            .bindPopup(popupContent);
-          
-          markers[callsign] = marker;
+        if (latLons.length >= 2) {
+          updatePolyline(callsign, latLons, selectedMode === 'live' ? '#dc2626' : '#2563eb');
         }
       });
 
@@ -932,13 +834,13 @@
     if (!activeSearchCall) {
       const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
       if (selectedMode === 'live') {
-        fetchAprsData();
+        handleModeChange();
       }
     }
-  }, 10000);
+  }, 15000);
 </script>
 
-<!-- Skript für die Status-Leiste der TG 313 (mit 5-Sekunden-Timer) -->
+<!-- Skript für die Status-Leiste der TG 313 -->
 <script>
 async function updateTGStatus() {
     try {
@@ -978,7 +880,6 @@ async function updateTGStatus() {
                 renderRelayStations();
             }
 
-            // Exakt 5 Sekunden Timer
             activityTimeout = setTimeout(() => {
                 currentActiveTalker = null;
                 lamp.className = 'tg-status-lamp inactive';
