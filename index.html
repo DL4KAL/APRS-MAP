@@ -838,7 +838,7 @@
   }, 15000);
 </script>
 
-<!-- Skript für die Status-Leiste der TG 313 (mit dauerhaftem Grün während des Tastens) -->
+<!-- Skript für die Status-Leiste der TG 313 (Puffer auf 2 Sekunden verkürzt) -->
 <script>
 let lastActiveTime = Date.now();
 
@@ -882,8 +882,8 @@ async function updateTGStatus() {
             text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313`;
 
         } else {
-            // Kein aktiver Talker. Mit einem Puffer von 4 Sekunden absichern gegen kurze Abfrageschwankungen.
-            if (Date.now() - lastActiveTime > 4000) {
+            // Kein aktiver Talker. Puffer auf 2 Sekunden verkürzt.
+            if (Date.now() - lastActiveTime > 2000) {
                 if (currentActiveTalker !== null) {
                     currentActiveTalker = null;
                     
