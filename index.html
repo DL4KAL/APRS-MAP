@@ -345,6 +345,7 @@
   <div id="aprs-controls">
     <div class="control-row">
       <div class="control-group-title">Anzeigemodus</div>
+      <!-- Nur noch zwei Optionen: Livedarstellung (Standard, 1h) und 24h Historie -->
       <label class="filter-item">
         <input type="radio" id="mode-live" name="time-mode" value="live" checked onchange="handleModeChange()">
         Livedarstellung
@@ -772,7 +773,7 @@
     const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
     clearAllLayers();
 
-    // Modus 'live' entspricht nun der 1-Stunden-Historie (Livedarstellung als Standard)
+    // Modus 'live' entspricht nun der 1-Stunden-Historie als Livedarstellung
     const hours = (selectedMode === '24h') ? 24 : 1;
     const ledIndicator = document.getElementById('led-indicator');
     const statusText = document.getElementById('status-text');
@@ -784,7 +785,7 @@
       const historyData = await response.json();
       
       ledIndicator.classList.add('online');
-      statusText.innerText = (selectedMode === '24h') ? "HISTORIE (24h)" : "LIVE (1h)";
+      statusText.innerText = (selectedMode === '24h') ? "HISTORIE (24h)" : "LIVEDARSTELLUNG";
 
       const grouped = {};
       historyData.forEach(pt => {
