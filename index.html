@@ -838,7 +838,7 @@
   }, 15000);
 </script>
 
-<!-- Skript für die Status-Leiste der TG 313 (Puffer auf 2 Sekunden verkürzt) -->
+<!-- Skript für die Status-Leiste der TG 313 (Puffer auf 800ms verkürzt für schnelles Umschalten) -->
 <script>
 let lastActiveTime = Date.now();
 
@@ -864,7 +864,7 @@ async function updateTGStatus() {
         }
 
         if (newTalker) {
-            // Sender aktiv -> Zeitstempel erneuern und Lampe dauerhaft auf Grün halten
+            // Sender aktiv -> Zeitstempel erneuern und Lampe auf Grün schalten
             lastActiveTime = Date.now();
 
             if (currentActiveTalker !== newTalker) {
@@ -882,8 +882,8 @@ async function updateTGStatus() {
             text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313`;
 
         } else {
-            // Kein aktiver Talker. Puffer auf 2 Sekunden verkürzt.
-            if (Date.now() - lastActiveTime > 2000) {
+            // Puffer auf 800ms verkürzt, damit die Lampe beim Signalabfall sofort auf Rot springt
+            if (Date.now() - lastActiveTime > 800) {
                 if (currentActiveTalker !== null) {
                     currentActiveTalker = null;
                     
