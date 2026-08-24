@@ -707,7 +707,6 @@
     const ledIndicator = document.getElementById('led-indicator');
     const statusText = document.getElementById('status-text');
 
-    // Live-Modus fragt 1 Stunde an, 24h-Modus fragt 24 Stunden an
     const hoursParam = (selectedMode === 'live') ? 1 : 24;
 
     try {
@@ -729,7 +728,6 @@
         const pts = grouped[callsign];
         if (pts.length === 0) return;
 
-        // Im Live-Modus nehmen wir pro Station exakt den allerletzten aktuellen Punkt der letzten Stunde
         const lastPt = pts[pts.length - 1];
         const category = detectCategory(lastPt.symbol || '', '');
         stationCategories[callsign] = category;
@@ -760,7 +758,6 @@
   handleModeChange();
   renderRelayStations(); 
 
-  // Im Live-Modus alle 15 Sekunden automatisch aktualisieren, ohne den Nutzer zu stören
   setInterval(() => {
     if (!activeSearchCall) {
       const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
