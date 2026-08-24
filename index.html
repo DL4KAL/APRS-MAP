@@ -771,27 +771,38 @@
     const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
     clearAllLayers();
 
-    const hours = (selectedMode === '24h') ? 24 : 1;
     const ledIndicator = document.getElementById('led-indicator');
     const statusText = document.getElementById('status-text');
 
     try {
-      const response = await fetch(`${BASE_URL}/history.json?hours=${hours}`);
+      const response = await fetch(`${BASE_URL}/history.json?hours=24`);
       if (!response.ok) throw new Error("HTTP Fehler " + response.status);
 
-      const historyData = await response.json();
+      const allData = await response.json();
       
       ledIndicator.classList.add('online');
       statusText.innerText = (selectedMode === '24h') ? "HISTORIE (24h)" : "LIVEDARSTELLUNG";
 
+      const now = Date.now();
+      const oneHourAgo = now - (60 * 60 * 1000);
+
       const grouped = {};
-      historyData.forEach(pt => {
+      allData.forEach(pt => {
+        if (selectedMode === 'live') {
+          if (pt.timestamp) {
+            const ptTime = new Date(pt.timestamp).getTime();
+            if (ptTime < oneHourAgo) return;
+          }
+        }
+
         if (!grouped[pt.callsign]) grouped[pt.callsign] = [];
         grouped[pt.callsign].push(pt);
       });
 
       Object.keys(grouped).forEach(callsign => {
         const pts = grouped[callsign];
+        if (pts.length === 0) return;
+
         const lastPt = pts[pts.length - 1];
         const category = detectCategory(lastPt.symbol || '', '');
         stationCategories[callsign] = category;
@@ -809,8 +820,8 @@
 
         markers[callsign] = marker;
 
-        if (latLons.length >= 2) {
-          updatePolyline(callsign, latLons, selectedMode === 'live' ? '#dc2626' : '#2563eb');
+        if (latLons.length >= 2 && selectedMode === '24h') {
+          updatePolyline(callsign, latLons, '#2563eb');
         }
       });
 
