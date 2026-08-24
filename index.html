@@ -783,18 +783,8 @@
       ledIndicator.classList.add('online');
       statusText.innerText = (selectedMode === '24h') ? "HISTORIE (24h)" : "LIVEDARSTELLUNG";
 
-      const now = Date.now();
-      const oneHourAgo = now - (60 * 60 * 1000);
-
       const grouped = {};
       allData.forEach(pt => {
-        if (selectedMode === 'live') {
-          if (pt.timestamp) {
-            const ptTime = new Date(pt.timestamp).getTime();
-            if (ptTime < oneHourAgo) return;
-          }
-        }
-
         if (!grouped[pt.callsign]) grouped[pt.callsign] = [];
         grouped[pt.callsign].push(pt);
       });
@@ -803,23 +793,27 @@
         const pts = grouped[callsign];
         if (pts.length === 0) return;
 
-        const lastPt = pts[pts.length - 1];
+        // Im Live-Modus nur den allerletzten Punkt anzeigen, im 24h-Modus alle Punkte
+        const activePts = (selectedMode === 'live') ? [pts[pts.length - 1]] : pts;
+        const lastPt = activePts[activePts.length - 1];
+
         const category = detectCategory(lastPt.symbol || '', '');
         stationCategories[callsign] = category;
 
-        const latLons = pts.map(p => [p.lat, p.lon]);
+        const latLons = activePts.map(p => [p.lat, p.lon]);
 
         const marker = L.marker([lastPt.lat, lastPt.lon], { icon: createCustomIcon(category, callsign) })
           .bindPopup(`
             <div class="custom-popup">
               <h4 style="margin:0 0 5px 0;">${callsign}</h4>
               <p style="margin:0; font-size: 13px;"><b>Position:</b> ${lastPt.lat.toFixed(5)}, ${lastPt.lon.toFixed(5)}</p>
-              <p style="margin:2px 0 0 0; font-size: 12px; color: #64748b;">Punkte: ${pts.length}</p>
+              <p style="margin:2px 0 0 0; font-size: 12px; color: #64748b;">Punkte: ${activePts.length}</p>
             </div>
           `);
 
         markers[callsign] = marker;
 
+        // Spurlinien werden ausschließlich im 24h-Modus gezeichnet
         if (latLons.length >= 2 && selectedMode === '24h') {
           updatePolyline(callsign, latLons, '#2563eb');
         }
@@ -849,7 +843,7 @@
   }, 15000);
 </script>
 
-<!-- Skript für die Status-Leiste der TG 313 (Puffer auf 800ms verkürzt für schnelles Umschalten) -->
+<!-- Skript für die Status-Leiste der TG 313 -->
 <script>
 let lastActiveTime = Date.now();
 
@@ -875,7 +869,6 @@ async function updateTGStatus() {
         }
 
         if (newTalker) {
-            // Sender aktiv -> Zeitstempel erneuern und Lampe auf Grün schalten
             lastActiveTime = Date.now();
 
             if (currentActiveTalker !== newTalker) {
@@ -893,7 +886,6 @@ async function updateTGStatus() {
             text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313`;
 
         } else {
-            // Puffer auf 800ms verkürzt, damit die Lampe beim Signalabfall sofort auf Rot springt
             if (Date.now() - lastActiveTime > 800) {
                 if (currentActiveTalker !== null) {
                     currentActiveTalker = null;
