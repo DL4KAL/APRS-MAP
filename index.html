@@ -347,7 +347,7 @@
       <div class="control-group-title">Anzeigemodus</div>
       <label class="filter-item">
         <input type="radio" id="mode-live" name="time-mode" value="live" checked onchange="handleModeChange()">
-        Livedarstellung
+        Livedarstellung (letzte 15 Min.)
       </label>
       <label class="filter-item">
         <input type="radio" id="mode-24h" name="time-mode" value="24h" onchange="handleModeChange()">
@@ -373,12 +373,6 @@
         <input type="checkbox" id="filter-relays" checked onchange="renderRelayStations()">
         <svg class="filter-icon-preview" viewBox="0 0 50 45"><polygon points="10,5 40,5 45,40 5,40" fill="#fef08a" stroke="#ca8a04" stroke-width="2"/><text x="25" y="27" font-family="Arial, sans-serif" font-weight="bold" font-size="12" fill="#166534" text-anchor="middle">TCP</text></svg>
         Funkbrücken
-      </label>
-
-      <label class="filter-item">
-        <input type="checkbox" id="filter-tracks" checked onchange="toggleTracksVisibility()">
-        <span style="display:inline-block; width: 22px; height: 4px; background-color: #2563eb; vertical-align: middle; margin-right: 2px;"></span>
-        Spurlinien
       </label>
     </div>
   </div>
@@ -410,7 +404,6 @@
   }).addTo(map);
 
   const markers = {};
-  const historyLines = {};
   const stationCategories = {};
   const relayMarkers = {}; 
   
@@ -488,33 +481,16 @@
     });
   }
 
-  function toggleTracksVisibility() {
-    saveUserSettings();
-    const showTracks = document.getElementById('filter-tracks').checked;
-    const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
-
-    Object.keys(historyLines).forEach(callsign => {
-      const line = historyLines[callsign];
-      if (showTracks && selectedMode === '24h') {
-        if (!map.hasLayer(line)) map.addLayer(line);
-      } else {
-        if (map.hasLayer(line)) map.removeLayer(line);
-      }
-    });
-  }
-
   function saveUserSettings() {
     const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
     const filterRv = document.getElementById('filter-rv').checked;
     const filterBoats = document.getElementById('filter-boats').checked;
     const filterRelays = document.getElementById('filter-relays').checked;
-    const filterTracks = document.getElementById('filter-tracks').checked;
 
     localStorage.setItem('aprs_time_mode', selectedMode);
     localStorage.setItem('aprs_filter_rv', filterRv);
     localStorage.setItem('aprs_filter_boats', filterBoats);
     localStorage.setItem('aprs_filter_relays', filterRelays);
-    localStorage.setItem('aprs_filter_tracks', filterTracks);
   }
 
   function loadUserSettings() {
@@ -522,7 +498,6 @@
     const savedRv = localStorage.getItem('aprs_filter_rv');
     const savedBoats = localStorage.getItem('aprs_filter_boats');
     const savedRelays = localStorage.getItem('aprs_filter_relays');
-    const savedTracks = localStorage.getItem('aprs_filter_tracks');
 
     if (savedMode) {
       const radioToSelect = document.querySelector(`input[name="time-mode"][value="${savedMode}"]`);
@@ -539,10 +514,6 @@
 
     if (savedRelays !== null) {
       document.getElementById('filter-relays').checked = (savedRelays === 'true');
-    }
-
-    if (savedTracks !== null) {
-      document.getElementById('filter-tracks').checked = (savedTracks === 'true');
     }
   }
 
@@ -634,13 +605,10 @@
 
     const showRv = document.getElementById('filter-rv').checked;
     const showBoats = document.getElementById('filter-boats').checked;
-    const showTracks = document.getElementById('filter-tracks').checked;
-    const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
 
     Object.keys(markers).forEach(callsign => {
       const cat = stationCategories[callsign];
       const marker = markers[callsign];
-      const line = historyLines[callsign];
 
       let isVisible = false;
       if (cat === 'rv' && showRv) isVisible = true;
@@ -649,50 +617,17 @@
 
       if (isVisible) {
         if (!map.hasLayer(marker)) map.addLayer(marker);
-        if (line && showTracks && selectedMode === '24h' && !map.hasLayer(line)) {
-          map.addLayer(line);
-        }
       } else {
         if (map.hasLayer(marker)) map.removeLayer(marker);
-        if (line && map.hasLayer(line)) map.removeLayer(line);
       }
     });
   }
 
-  function clearAllLayers() {
+  function clearAllMarkers() {
     Object.keys(markers).forEach(cs => {
       if (map.hasLayer(markers[cs])) map.removeLayer(markers[cs]);
       delete markers[cs];
     });
-    Object.keys(historyLines).forEach(cs => {
-      if (map.hasLayer(historyLines[cs])) map.removeLayer(historyLines[cs]);
-      delete historyLines[cs];
-    });
-  }
-
-  function updatePolyline(callsign, pointsArray, strokeColor = '#2563eb') {
-    if (!pointsArray || pointsArray.length < 2) return;
-
-    if (historyLines[callsign]) {
-      historyLines[callsign].setLatLngs(pointsArray);
-      historyLines[callsign].setStyle({ color: strokeColor });
-    } else {
-      const line = L.polyline(pointsArray, {
-        color: strokeColor,
-        weight: 4,
-        opacity: 0.85,
-        smoothFactor: 1
-      });
-
-      const showTracks = document.getElementById('filter-tracks').checked;
-      const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
-
-      if (showTracks && selectedMode === '24h') {
-        line.addTo(map);
-      }
-      
-      historyLines[callsign] = line;
-    }
   }
 
   async function searchCallsign() {
@@ -708,14 +643,13 @@
 
     activeSearchCall = query;
     document.getElementById('reset-search-btn').style.display = 'inline-block';
-    clearAllLayers();
+    clearAllMarkers();
 
     try {
       const res = await fetch(`${BASE_URL}/history.json?callsign=${encodeURIComponent(query)}&hours=168`);
       if (res.ok) {
         const historyPoints = await res.json();
         if (Array.isArray(historyPoints) && historyPoints.length > 0) {
-          const trackPoints = historyPoints.map(p => [p.lat, p.lon]);
           const lastPoint = historyPoints[historyPoints.length - 1];
           const category = detectCategory(lastPoint.symbol || '', '');
           
@@ -731,15 +665,7 @@
           markers[query] = marker;
           stationCategories[query] = category;
           
-          if (trackPoints.length >= 2) {
-            updatePolyline(query, trackPoints, '#dc2626');
-            if (document.getElementById('filter-tracks').checked && historyLines[query] && !map.hasLayer(historyLines[query])) {
-              historyLines[query].addTo(map);
-            }
-            map.fitBounds(L.polyline(trackPoints).getBounds(), { padding: [40, 40] });
-          } else {
-            map.setView([lastPoint.lat, lastPoint.lon], 12);
-          }
+          map.setView([lastPoint.lat, lastPoint.lon], 12);
           return;
         }
       }
@@ -756,7 +682,7 @@
     document.getElementById('search-input').value = '';
     document.getElementById('reset-search-btn').style.display = 'none';
 
-    clearAllLayers();
+    clearAllMarkers();
 
     if (previousMapView) {
       map.setView(previousMapView.center, previousMapView.zoom);
@@ -776,7 +702,7 @@
     }
 
     const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
-    clearAllLayers();
+    clearAllMarkers();
 
     const ledIndicator = document.getElementById('led-indicator');
     const statusText = document.getElementById('status-text');
@@ -788,7 +714,10 @@
       const allData = await response.json();
       
       ledIndicator.classList.add('online');
-      statusText.innerText = (selectedMode === '24h') ? "HISTORIE (24h)" : "LIVEDARSTELLUNG";
+      statusText.innerText = (selectedMode === '24h') ? "HISTORIE (24h)" : "LIVEDARSTELLUNG (15 Min.)";
+
+      const now = Date.now();
+      const fifteenMinutesAgo = now - (15 * 60 * 1000);
 
       const grouped = {};
       allData.forEach(pt => {
@@ -800,30 +729,26 @@
         const pts = grouped[callsign];
         if (pts.length === 0) return;
 
-        // Live-Modus zeigt nur den letzten Punkt, 24h-Modus zeigt alle Punkte der Station
-        const activePts = (selectedMode === 'live') ? [pts[pts.length - 1]] : pts;
-        const lastPt = activePts[activePts.length - 1];
+        const lastPt = pts[pts.length - 1];
+
+        // Im Live-Modus filtern wir Stationen aus, deren letzter Punkt älter als 15 Minuten ist (falls Zeitstempel vorhanden)
+        if (selectedMode === 'live' && lastPt.timestamp) {
+          const ptTime = new Date(lastPt.timestamp).getTime();
+          if (ptTime < fifteenMinutesAgo) return;
+        }
 
         const category = detectCategory(lastPt.symbol || '', '');
         stationCategories[callsign] = category;
-
-        const latLons = activePts.map(p => [p.lat, p.lon]);
 
         const marker = L.marker([lastPt.lat, lastPt.lon], { icon: createCustomIcon(category, callsign) })
           .bindPopup(`
             <div class="custom-popup">
               <h4 style="margin:0 0 5px 0;">${callsign}</h4>
               <p style="margin:0; font-size: 13px;"><b>Position:</b> ${lastPt.lat.toFixed(5)}, ${lastPt.lon.toFixed(5)}</p>
-              <p style="margin:2px 0 0 0; font-size: 12px; color: #64748b;">Punkte: ${activePts.length}</p>
             </div>
           `);
 
         markers[callsign] = marker;
-
-        // Spurlinien nur im 24h-Modus erzeugen
-        if (latLons.length >= 2 && selectedMode === '24h') {
-          updatePolyline(callsign, latLons, '#2563eb');
-        }
       });
 
       applyCategoryFilter();
