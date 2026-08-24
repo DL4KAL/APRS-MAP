@@ -411,7 +411,6 @@
 
   const markers = {};
   const historyLines = {};
-  const localTracks = {};
   const stationCategories = {};
   const relayMarkers = {}; 
   
@@ -492,10 +491,11 @@
   function toggleTracksVisibility() {
     saveUserSettings();
     const showTracks = document.getElementById('filter-tracks').checked;
+    const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
 
     Object.keys(historyLines).forEach(callsign => {
       const line = historyLines[callsign];
-      if (showTracks) {
+      if (showTracks && selectedMode === '24h') {
         if (!map.hasLayer(line)) map.addLayer(line);
       } else {
         if (map.hasLayer(line)) map.removeLayer(line);
@@ -634,6 +634,8 @@
 
     const showRv = document.getElementById('filter-rv').checked;
     const showBoats = document.getElementById('filter-boats').checked;
+    const showTracks = document.getElementById('filter-tracks').checked;
+    const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
 
     Object.keys(markers).forEach(callsign => {
       const cat = stationCategories[callsign];
@@ -647,7 +649,9 @@
 
       if (isVisible) {
         if (!map.hasLayer(marker)) map.addLayer(marker);
-        if (line && document.getElementById('filter-tracks').checked && !map.hasLayer(line)) map.addLayer(line);
+        if (line && showTracks && selectedMode === '24h' && !map.hasLayer(line)) {
+          map.addLayer(line);
+        }
       } else {
         if (map.hasLayer(marker)) map.removeLayer(marker);
         if (line && map.hasLayer(line)) map.removeLayer(line);
@@ -680,7 +684,10 @@
         smoothFactor: 1
       });
 
-      if (document.getElementById('filter-tracks').checked) {
+      const showTracks = document.getElementById('filter-tracks').checked;
+      const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
+
+      if (showTracks && selectedMode === '24h') {
         line.addTo(map);
       }
       
@@ -793,7 +800,7 @@
         const pts = grouped[callsign];
         if (pts.length === 0) return;
 
-        // Im Live-Modus nur den allerletzten Punkt anzeigen, im 24h-Modus alle Punkte
+        // Live-Modus zeigt nur den letzten Punkt, 24h-Modus zeigt alle Punkte der Station
         const activePts = (selectedMode === 'live') ? [pts[pts.length - 1]] : pts;
         const lastPt = activePts[activePts.length - 1];
 
@@ -813,7 +820,7 @@
 
         markers[callsign] = marker;
 
-        // Spurlinien werden ausschließlich im 24h-Modus gezeichnet
+        // Spurlinien nur im 24h-Modus erzeugen
         if (latLons.length >= 2 && selectedMode === '24h') {
           updatePolyline(callsign, latLons, '#2563eb');
         }
