@@ -347,7 +347,7 @@
       <div class="control-group-title">Anzeigemodus</div>
       <label class="filter-item">
         <input type="radio" id="mode-live" name="time-mode" value="live" checked onchange="handleModeChange()">
-        Livedarstellung (letzte 15 Min.)
+        Livedarstellung
       </label>
       <label class="filter-item">
         <input type="radio" id="mode-24h" name="time-mode" value="24h" onchange="handleModeChange()">
@@ -707,17 +707,17 @@
     const ledIndicator = document.getElementById('led-indicator');
     const statusText = document.getElementById('status-text');
 
+    // Hier übergeben wir den Parameter direkt an den Server (1 Stunde vs 24 Stunden)
+    const hoursParam = (selectedMode === 'live') ? 1 : 24;
+
     try {
-      const response = await fetch(`${BASE_URL}/history.json?hours=24`);
+      const response = await fetch(`${BASE_URL}/history.json?hours=${hoursParam}`);
       if (!response.ok) throw new Error("HTTP Fehler " + response.status);
 
       const allData = await response.json();
       
       ledIndicator.classList.add('online');
-      statusText.innerText = (selectedMode === '24h') ? "HISTORIE (24h)" : "LIVEDARSTELLUNG (15 Min.)";
-
-      const now = Date.now();
-      const fifteenMinutesAgo = now - (15 * 60 * 1000);
+      statusText.innerText = (selectedMode === '24h') ? "HISTORIE (24h)" : "LIVEDARSTELLUNG (1h)";
 
       const grouped = {};
       allData.forEach(pt => {
@@ -730,13 +730,6 @@
         if (pts.length === 0) return;
 
         const lastPt = pts[pts.length - 1];
-
-        // Im Live-Modus filtern wir Stationen aus, deren letzter Punkt älter als 15 Minuten ist (falls Zeitstempel vorhanden)
-        if (selectedMode === 'live' && lastPt.timestamp) {
-          const ptTime = new Date(lastPt.timestamp).getTime();
-          if (ptTime < fifteenMinutesAgo) return;
-        }
-
         const category = detectCategory(lastPt.symbol || '', '');
         stationCategories[callsign] = category;
 
