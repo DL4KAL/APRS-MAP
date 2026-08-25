@@ -768,9 +768,11 @@
   }, 15000);
 </script>
 
-<!-- Skript für die Status-Leiste der TG 313 -->
+<!-- Skript für die Status-Leiste der TG 313 (Mehrfach-Talker-Unterstützung) -->
 <script>
 let lastActiveTime = Date.now();
+let activeTalkersList = [];
+let talkerIndex = 0;
 
 async function updateTGStatus() {
     try {
@@ -780,21 +782,28 @@ async function updateTGStatus() {
         const lamp = document.getElementById('tg-lamp');
         const text = document.getElementById('tg-text');
 
-        let newTalker = null;
+        activeTalkersList = [];
 
         if (result.success && result.data && result.data.length > 0) {
-            const activeItem = result.data.find(item => {
+            result.data.forEach(item => {
                 const call = item.col1 || '';
-                return call && !call.includes('Lade') && !call.includes('Keine');
+                if (call && !call.includes('Lade') && !call.includes('Keine')) {
+                    if (!activeTalkersList.includes(call)) {
+                        activeTalkersList.push(call);
+                    }
+                }
             });
-
-            if (activeItem) {
-                newTalker = activeItem.col1;
-            }
         }
 
-        if (newTalker) {
+        if (activeTalkersList.length > 0) {
             lastActiveTime = Date.now();
+
+            // Index im Rahmen halten
+            if (talkerIndex >= activeTalkersList.length) {
+                talkerIndex = 0;
+            }
+
+            const newTalker = activeTalkersList[talkerIndex];
 
             if (currentActiveTalker !== newTalker) {
                 currentActiveTalker = newTalker;
@@ -808,10 +817,15 @@ async function updateTGStatus() {
             }
 
             lamp.className = 'tg-status-lamp active';
-            text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313`;
+            
+            if (activeTalkersList.length > 1) {
+                text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313 <span style="font-size: 11px; color: #94a3b8;">(${talkerIndex + 1}/${activeTalkersList.length})</span>`;
+            } else {
+                text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313`;
+            }
 
         } else {
-            if (Date.now() - lastActiveTime > 800) {
+            if (Date.now() - lastActiveTime > 1200) {
                 if (currentActiveTalker !== null) {
                     currentActiveTalker = null;
                     
@@ -834,6 +848,14 @@ async function updateTGStatus() {
 
 updateTGStatus();
 setInterval(updateTGStatus, 1500);
+
+// Rotiert bei mehreren aktiven Stationen alle 3 Sekunden durch die Liste
+setInterval(() => {
+    if (activeTalkersList.length > 1) {
+        talkerIndex = (talkerIndex + 1) % activeTalkersList.length;
+        updateTGStatus();
+    }
+}, 3000);
 </script>
 
 </body>
