@@ -4,18 +4,17 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  
+
   <!-- SEO Meta-Tags -->
   <title>Live APRS Karte – Realtime Tracking für Amateurfunk & DMR</title>
   <meta name="description" content="Interaktive Live-APRS-Karte zur Visualisierung von Amateurfunk-Stationen, Wohnmobilen, Booten und Relaisfunkstellen (TG 313) in Echtzeit.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://DL4KAL.github.io/APRS-MAP/">
-  
+
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
-    /* Globales Reset für korrekte Breitenberechnung */
     * {
       box-sizing: border-box;
     }
@@ -60,7 +59,7 @@
       flex: 1;
       min-width: 200px;
       padding: 10px 12px;
-      font-size: 16px; /* 16px verhindert autom. Zoom auf iPhones */
+      font-size: 16px;
       border: 1px solid #475569;
       border-radius: 6px;
       background-color: #0f172a;
@@ -82,7 +81,7 @@
       border-radius: 6px;
       cursor: pointer;
       transition: background-color 0.2s;
-      min-height: 42px; /* Bessere Touch-Trefferfläche */
+      min-height: 42px;
     }
 
     .search-btn {
@@ -131,7 +130,6 @@
       100% { transform: scale(0.95); opacity: 0.8; }
     }
 
-    /* Dynamische Höhenanpassung für Mobile */
     #map {
       height: 50vh;
       min-height: 320px;
@@ -339,7 +337,7 @@
     <button class="search-btn" onclick="searchCallsign()">Suchen</button>
     <button id="reset-search-btn" class="reset-btn" onclick="resetSearch()">Zurück zur Übersicht</button>
   </div>
-  
+
   <div id="map"></div>
 
   <div id="aprs-controls">
@@ -394,8 +392,10 @@
   const options = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' };
   document.getElementById('file-version').innerText = modDate.toLocaleDateString('de-DE', options) + ' Uhr';
 
-  const BASE_URL = "https://aprs-server.onrender.com";
-  
+  // Supabase-Zugang (öffentlicher Schlüssel, für das Frontend vorgesehen)
+  const SUPA_URL = "https://acharyaisxfpmvejmhho.supabase.co";
+  const SUPA_ANON = "sb_publishable_-ylVCQEcJiDn41pWdVIRlA_PGekzQI-";
+
   const map = L.map('map').setView([50.7374, 7.0982], 6);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -405,11 +405,35 @@
 
   const markers = {};
   const stationCategories = {};
-  const relayMarkers = {}; 
-  
+  const relayMarkers = {};
+
   let activeSearchCall = null;
   let previousMapView = null;
   let currentActiveTalker = null;
+
+  // Lädt Positionen aus Supabase und passt die Spaltennamen an das bisherige Format an
+  async function fetchHistory(hours, callFragment) {
+    const since = new Date(Date.now() - hours * 3600e3).toISOString();
+    let url = `${SUPA_URL}/rest/v1/aprs_history` +
+      `?select=callsign,latitude,longitude,symbol,timestamp` +
+      `&timestamp=gte.${encodeURIComponent(since)}` +
+      `&order=timestamp.asc&limit=5000`;
+    if (callFragment) {
+      url += `&callsign=ilike.${encodeURIComponent("*" + callFragment + "*")}`;
+    }
+    const res = await fetch(url, {
+      headers: { apikey: SUPA_ANON, Authorization: `Bearer ${SUPA_ANON}` }
+    });
+    if (!res.ok) throw new Error("HTTP Fehler " + res.status);
+    const rows = await res.json();
+    return rows.map(r => ({
+      callsign: r.callsign,
+      lat: r.latitude,
+      lon: r.longitude,
+      symbol: r.symbol,
+      time: r.timestamp
+    }));
+  }
 
   const connectedRelays = [
     { callsign: "DL0SL", lat: 48.841667, lon: 12.980556 },
@@ -646,28 +670,25 @@
     clearAllMarkers();
 
     try {
-      const res = await fetch(`${BASE_URL}/history.json?callsign=${encodeURIComponent(query)}&hours=168`);
-      if (res.ok) {
-        const historyPoints = await res.json();
-        if (Array.isArray(historyPoints) && historyPoints.length > 0) {
-          const lastPoint = historyPoints[historyPoints.length - 1];
-          const category = detectCategory(lastPoint.symbol || '', '');
-          
-          const marker = L.marker([lastPoint.lat, lastPoint.lon], { icon: createCustomIcon(category, query) })
-            .bindPopup(`
-              <div class="custom-popup">
-                <h4 style="margin:0 0 5px 0;">${query}</h4>
-                <p style="margin:0; font-size: 13px;"><b>Position:</b> ${lastPoint.lat.toFixed(5)}, ${lastPoint.lon.toFixed(5)}</p>
-              </div>
-            `)
-            .addTo(map);
+      const historyPoints = await fetchHistory(24, query);
+      if (Array.isArray(historyPoints) && historyPoints.length > 0) {
+        const lastPoint = historyPoints[historyPoints.length - 1];
+        const category = detectCategory(lastPoint.symbol || '', '');
 
-          markers[query] = marker;
-          stationCategories[query] = category;
-          
-          map.setView([lastPoint.lat, lastPoint.lon], 12);
-          return;
-        }
+        const marker = L.marker([lastPoint.lat, lastPoint.lon], { icon: createCustomIcon(category, query) })
+          .bindPopup(`
+            <div class="custom-popup">
+              <h4 style="margin:0 0 5px 0;">${query}</h4>
+              <p style="margin:0; font-size: 13px;"><b>Position:</b> ${lastPoint.lat.toFixed(5)}, ${lastPoint.lon.toFixed(5)}</p>
+            </div>
+          `)
+          .addTo(map);
+
+        markers[query] = marker;
+        stationCategories[query] = category;
+
+        map.setView([lastPoint.lat, lastPoint.lon], 12);
+        return;
       }
     } catch (e) {
       console.warn("Datenbank-Suche fehlgeschlagen:", e);
@@ -710,11 +731,8 @@
     const hoursParam = (selectedMode === 'live') ? 1 : 24;
 
     try {
-      const response = await fetch(`${BASE_URL}/history.json?hours=${hoursParam}`);
-      if (!response.ok) throw new Error("HTTP Fehler " + response.status);
+      const allData = await fetchHistory(hoursParam);
 
-      const allData = await response.json();
-      
       ledIndicator.classList.add('online');
       statusText.innerText = (selectedMode === '24h') ? "HISTORIE (24h)" : "LIVEDARSTELLUNG (1 Std.)";
 
@@ -756,7 +774,7 @@
   // Initialisierung beim Laden der Seite
   loadUserSettings();
   handleModeChange();
-  renderRelayStations(); 
+  renderRelayStations();
 
   setInterval(() => {
     if (!activeSearchCall) {
@@ -778,7 +796,7 @@ async function updateTGStatus() {
     try {
         const response = await fetch('https://fm-proxy-e2dz.onrender.com/api/tg/313');
         const result = await response.json();
-        
+
         const lamp = document.getElementById('tg-lamp');
         const text = document.getElementById('tg-text');
 
@@ -798,7 +816,6 @@ async function updateTGStatus() {
         if (activeTalkersList.length > 0) {
             lastActiveTime = Date.now();
 
-            // Index im Rahmen halten
             if (talkerIndex >= activeTalkersList.length) {
                 talkerIndex = 0;
             }
@@ -807,7 +824,7 @@ async function updateTGStatus() {
 
             if (currentActiveTalker !== newTalker) {
                 currentActiveTalker = newTalker;
-                
+
                 Object.keys(markers).forEach(cs => {
                     const cat = stationCategories[cs] || 'other';
                     markers[cs].setIcon(createCustomIcon(cat, cs));
@@ -817,7 +834,7 @@ async function updateTGStatus() {
             }
 
             lamp.className = 'tg-status-lamp active';
-            
+
             if (activeTalkersList.length > 1) {
                 text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313 <span style="font-size: 11px; color: #94a3b8;">(${talkerIndex + 1}/${activeTalkersList.length})</span>`;
             } else {
@@ -828,7 +845,7 @@ async function updateTGStatus() {
             if (Date.now() - lastActiveTime > 1200) {
                 if (currentActiveTalker !== null) {
                     currentActiveTalker = null;
-                    
+
                     Object.keys(markers).forEach(cs => {
                         const cat = stationCategories[cs] || 'other';
                         markers[cs].setIcon(createCustomIcon(cat, cs));
@@ -849,7 +866,6 @@ async function updateTGStatus() {
 updateTGStatus();
 setInterval(updateTGStatus, 1500);
 
-// Rotiert bei mehreren aktiven Stationen alle 3 Sekunden durch die Liste
 setInterval(() => {
     if (activeTalkersList.length > 1) {
         talkerIndex = (talkerIndex + 1) % activeTalkersList.length;
