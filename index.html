@@ -435,6 +435,20 @@
     }));
   }
 
+  // Fährt die Karte zur Position des aktiven TG-313-Sprechers
+  async function focusOnTalker(callsign) {
+    if (!callsign || callsign.includes('Keine')) return;
+    if (activeSearchCall) return; // Während einer Suche nicht springen
+    try {
+      const rows = await fetchHistory(1, callsign.split('-')[0]);
+      if (!rows.length) return;
+      const last = rows[rows.length - 1];
+      map.flyTo([last.lat, last.lon], 10, { duration: 1.5 });
+    } catch (e) {
+      console.warn("Fokus auf Sprecher fehlgeschlagen:", e);
+    }
+  }
+
   const connectedRelays = [
     { callsign: "DL0SL", lat: 48.841667, lon: 12.980556 },
     { callsign: "DL0IAW", lat: 49.18684, lon: 7.36953 }
@@ -824,6 +838,8 @@ async function updateTGStatus() {
 
             if (currentActiveTalker !== newTalker) {
                 currentActiveTalker = newTalker;
+
+                focusOnTalker(newTalker);
 
                 Object.keys(markers).forEach(cs => {
                     const cat = stationCategories[cs] || 'other';
