@@ -483,12 +483,13 @@
     }
   }
 
-  // Kategorie aus dem Symbolcode ermitteln.
-  // Der Symbolcode ist das letzte Zeichen, z. B. "/R" -> "R" (Wohnmobil), "/s" -> "s" (Boot).
+  // Kategorie aus dem Symbolcode ermitteln (letztes Zeichen des Symbols):
+  // Wohnmobile: /r und /R
+  // Yachten:    /y und /Y
   function detectCategory(symString) {
     const code = (symString || '').slice(-1);
-    if (code === 'R') return 'rv';
-    if (code === 's' || code === 'Y') return 'boats';
+    if (code === '/r' || code === '/R') return 'rv';
+    if (code === '/y' || code === '/Y') return 'boats';
     return 'other';
   }
 
