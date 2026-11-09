@@ -11,8 +11,8 @@
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://DL4KAL.github.io/APRS-MAP/">
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
     * {
@@ -428,22 +428,34 @@
   let previousMapView = null;
   let currentActiveTalker = null;
 
-  // Lädt Positionen aus Supabase und passt die Spaltennamen an das bisherige Format an
+  // Lädt alle Positionen seitenweise (Supabase liefert max. 1000 Zeilen pro Anfrage)
   async function fetchHistory(hours, callFragment) {
     const since = new Date(Date.now() - hours * 3600e3).toISOString();
-    let url = `${SUPA_URL}/rest/v1/aprs_history` +
+    let base = `${SUPA_URL}/rest/v1/aprs_history` +
       `?select=callsign,latitude,longitude,symbol,timestamp` +
       `&timestamp=gte.${encodeURIComponent(since)}` +
-      `&order=timestamp.asc&limit=5000`;
+      `&order=timestamp.asc`;
     if (callFragment) {
-      url += `&callsign=ilike.${encodeURIComponent("*" + callFragment + "*")}`;
+      base += `&callsign=ilike.${encodeURIComponent("*" + callFragment + "*")}`;
     }
-    const res = await fetch(url, {
-      headers: { apikey: SUPA_ANON, Authorization: `Bearer ${SUPA_ANON}` }
-    });
-    if (!res.ok) throw new Error("HTTP Fehler " + res.status);
-    const rows = await res.json();
-    return rows.map(r => ({
+
+    const PAGE = 1000;
+    const all = [];
+    for (let from = 0; from < 100000; from += PAGE) {
+      const res = await fetch(base, {
+        headers: {
+          apikey: SUPA_ANON,
+          Authorization: `Bearer ${SUPA_ANON}`,
+          Range: `${from}-${from + PAGE - 1}`
+        }
+      });
+      if (!res.ok) throw new Error("HTTP Fehler " + res.status);
+      const rows = await res.json();
+      all.push(...rows);
+      if (rows.length < PAGE) break;
+    }
+
+    return all.map(r => ({
       callsign: r.callsign,
       lat: r.latitude,
       lon: r.longitude,
@@ -562,7 +574,7 @@
     });
   }
 
-    function applyCategoryFilter() {
+  function applyCategoryFilter() {
     saveUserSettings();
 
     if (activeSearchCall) return;
