@@ -488,8 +488,8 @@
   // Yachten:    /y und /Y
   function detectCategory(symString) {
     const code = (symString || '').slice(-1);
-    if (code === '/r' || code === '/R') return 'rv';
-    if (code === '/y' || code === '/Y') return 'boats';
+    if (code === 'r' || code === 'R') return 'rv';
+    if (code === 'y' || code === 'Y') return 'boats';
     return 'other';
   }
 
@@ -653,44 +653,4 @@
     loadData();
   }
 
-  // Lädt alle Stationen der letzten 24 Stunden und zeigt sie auf der Karte an
-  async function loadData() {
-    const ledIndicator = document.getElementById('led-indicator');
-    const statusText = document.getElementById('status-text');
-
-    clearAllMarkers();
-
-    try {
-      const allData = await fetchHistory(DATA_HOURS);
-
-      ledIndicator.classList.add('online');
-      statusText.innerText = "AKTUELL (letzte 24 Std.)";
-
-      // Zeitraum und Aktualität für den Hinweis ermitteln
-      const toDate = (s) => new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s + 'Z');
-      const fmt = (d) => d.toLocaleString('de-DE', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin'
-      }) + ' Uhr';
-
-      const times = allData.map(p => p.time).filter(Boolean).map(toDate).sort((a, b) => a - b);
-      const standEl = document.getElementById('data-stand');
-      const rangeEl = document.getElementById('data-range');
-      const warnEl = document.getElementById('data-warn');
-
-      if (times.length) {
-        const newest = times[times.length - 1];
-        const oldest = times[0];
-        const ageMin = Math.round((Date.now() - newest.getTime()) / 60000);
-        standEl.innerText = `${fmt(newest)} (vor ${ageMin} Min.)`;
-        rangeEl.innerText = `${fmt(oldest)} bis ${fmt(newest)}`;
-        warnEl.style.display = ageMin > 15 ? 'block' : 'none';
-      } else {
-        standEl.innerText = 'keine Daten';
-        rangeEl.innerText = '–';
-        warnEl.style.display = 'block';
-      }
-
-      // Pro Rufzeichen nur die letzte Position anzeigen
-      const grouped = {};
-      allData.forEach(pt =>
+  // Lädt alle Stationen
