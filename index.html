@@ -363,7 +363,7 @@
     <div class="info-box">
       <strong>Welche Daten werden angezeigt?</strong><br>
       Die APRS-Positionen werden alle 5 Minuten neu abgefragt und gespeichert.
-      Angezeigt werden alle Stationen der letzten 24 Stunden. Ältere Einträge werden
+      Angezeigt werden Stationen mit der SSID -7 der letzten 24 Stunden. Ältere Einträge werden
       nicht mehr dargestellt und automatisch aus der Datenbank entfernt.
       <span class="stand">Zeitraum der Anzeige: <span id="data-range">wird geladen…</span></span>
       <span class="stand">Neuester Datensatz: <span id="data-stand">wird geladen…</span></span>
@@ -411,6 +411,8 @@
 
   // Anzeigezeitraum: alle Einträge der letzten 24 Stunden
   const DATA_HOURS = 24;
+  // Nur Stationen mit dieser SSID werden angezeigt (Rufzeichen endet auf "-7")
+  const SSID_SUFFIX = "-7";
   // Neuladen der Karte, jede Minute (der Sammler schreibt alle 5 Minuten)
   const REFRESH_MS = 60 * 1000;
 
@@ -428,26 +430,29 @@
   let previousMapView = null;
   let currentActiveTalker = null;
 
-  // Lädt alle Positionen seitenweise (Supabase liefert max. 1000 Zeilen pro Anfrage)
+  // Lädt Positionen seitenweise über offset. Nur Rufzeichen mit SSID -7.
+  // Supabase liefert max. 1000 Zeilen pro Anfrage, deshalb wird blockweise geladen.
   async function fetchHistory(hours, callFragment) {
     const since = new Date(Date.now() - hours * 3600e3).toISOString();
-    let base = `${SUPA_URL}/rest/v1/aprs_history` +
-      `?select=callsign,latitude,longitude,symbol,timestamp` +
-      `&timestamp=gte.${encodeURIComponent(since)}` +
-      `&order=timestamp.asc`;
+
+    // SSID-Filter: Rufzeichen muss auf "-7" enden
+    let filter = `callsign=like.*${encodeURIComponent(SSID_SUFFIX)}`;
     if (callFragment) {
-      base += `&callsign=ilike.${encodeURIComponent("*" + callFragment + "*")}`;
+      const frag = encodeURIComponent(callFragment);
+      filter = `and=(callsign.ilike.*${frag}*,callsign.like.*${encodeURIComponent(SSID_SUFFIX)})`;
     }
+
+    const base = `${SUPA_URL}/rest/v1/aprs_history` +
+      `?select=id,callsign,latitude,longitude,symbol,timestamp` +
+      `&timestamp=gte.${encodeURIComponent(since)}` +
+      `&${filter}` +
+      `&order=timestamp.asc,id.asc`;
 
     const PAGE = 1000;
     const all = [];
-    for (let from = 0; from < 100000; from += PAGE) {
-      const res = await fetch(base, {
-        headers: {
-          apikey: SUPA_ANON,
-          Authorization: `Bearer ${SUPA_ANON}`,
-          Range: `${from}-${from + PAGE - 1}`
-        }
+    for (let offset = 0; offset < 100000; offset += PAGE) {
+      const res = await fetch(`${base}&limit=${PAGE}&offset=${offset}`, {
+        headers: { apikey: SUPA_ANON, Authorization: `Bearer ${SUPA_ANON}` }
       });
       if (!res.ok) throw new Error("HTTP Fehler " + res.status);
       const rows = await res.json();
@@ -624,17 +629,17 @@
         const lastPoint = historyPoints[historyPoints.length - 1];
         const category = detectCategory(lastPoint.symbol || '');
 
-        const marker = L.marker([lastPoint.lat, lastPoint.lon], { icon: createCustomIcon(category, query) })
+        const marker = L.marker([lastPoint.lat, lastPoint.lon], { icon: createCustomIcon(category, lastPoint.callsign) })
           .bindPopup(`
             <div class="custom-popup">
-              <h4 style="margin:0 0 5px 0;">${query}</h4>
+              <h4 style="margin:0 0 5px 0;">${lastPoint.callsign}</h4>
               <p style="margin:0; font-size: 13px;"><b>Position:</b> ${lastPoint.lat.toFixed(5)}, ${lastPoint.lon.toFixed(5)}</p>
             </div>
           `)
           .addTo(map);
 
-        markers[query] = marker;
-        stationCategories[query] = category;
+        markers[lastPoint.callsign] = marker;
+        stationCategories[lastPoint.callsign] = category;
 
         map.setView([lastPoint.lat, lastPoint.lon], 12);
         return;
@@ -643,7 +648,7 @@
       console.warn("Datenbank-Suche fehlgeschlagen:", e);
     }
 
-    alert(`Keine Treffer für Fragment oder Rufzeichen "${query}" in den letzten 24 Stunden gefunden.`);
+    alert(`Keine Treffer für "${query}" mit SSID -7 in den letzten 24 Stunden gefunden.`);
     resetSearch();
   }
 
@@ -662,7 +667,7 @@
     loadData();
   }
 
-  // Lädt alle Stationen der letzten 24 Stunden und zeigt sie auf der Karte an
+  // Lädt alle Stationen mit SSID -7 der letzten 24 Stunden und zeigt sie auf der Karte an
   async function loadData() {
     const ledIndicator = document.getElementById('led-indicator');
     const statusText = document.getElementById('status-text');
