@@ -7,7 +7,7 @@
 
   <!-- SEO Meta-Tags -->
   <title>Live APRS Karte – Realtime Tracking für Amateurfunk & DMR</title>
-  <meta name="description" content="Interaktive Live-APRS-Karte zur Visualisierung von Amateurfunk-Stationen, Wohnmobilen, Booten und Relaisfunkstellen (TG 313) in Echtzeit.">
+  <meta name="description" content="Interaktive Live-APRS-Karte zur Visualisierung von Amateurfunk-Stationen, Wohnmobilen und Booten sowie der Status des FM-Funknetzes TG 313 in Echtzeit.">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://DL4KAL.github.io/APRS-MAP/">
 
@@ -149,6 +149,26 @@
       border-bottom-right-radius: 8px;
     }
 
+    .info-box {
+      padding: 12px 15px;
+      background-color: #e2e8f0;
+      border-bottom: 1px solid #cbd5e1;
+      font-size: 13px;
+      line-height: 1.5;
+      color: #334155;
+    }
+
+    .info-box strong {
+      color: #0f172a;
+    }
+
+    .info-box .stand {
+      display: block;
+      margin-top: 6px;
+      font-size: 12px;
+      color: #475569;
+    }
+
     .control-row {
       display: flex;
       justify-content: space-around;
@@ -184,8 +204,7 @@
       padding: 4px 0;
     }
 
-    .filter-item input[type="checkbox"],
-    .filter-item input[type="radio"] {
+    .filter-item input[type="checkbox"] {
       width: 20px;
       height: 20px;
       cursor: pointer;
@@ -341,16 +360,12 @@
   <div id="map"></div>
 
   <div id="aprs-controls">
-    <div class="control-row">
-      <div class="control-group-title">Anzeigemodus</div>
-      <label class="filter-item">
-        <input type="radio" id="mode-live" name="time-mode" value="live" checked onchange="handleModeChange()">
-        Livedarstellung (1 Std.)
-      </label>
-      <label class="filter-item">
-        <input type="radio" id="mode-24h" name="time-mode" value="24h" onchange="handleModeChange()">
-        24 Stunden Historie
-      </label>
+    <div class="info-box">
+      <strong>Welche Daten werden angezeigt?</strong><br>
+      Die APRS-Positionen werden alle 5 Minuten neu abgefragt und gespeichert.
+      Angezeigt werden alle Stationen der letzten 24 Stunden. Ältere Einträge werden
+      nicht mehr dargestellt und automatisch aus der Datenbank entfernt.
+      <span class="stand">Neuester Datensatz: <span id="data-stand">wird geladen…</span></span>
     </div>
 
     <div class="control-row top-border">
@@ -365,12 +380,6 @@
         <input type="checkbox" id="filter-boats" checked onchange="applyCategoryFilter()">
         <svg class="filter-icon-preview" viewBox="0 0 100 60"><path d="M10 36 L85 36 L72 50 L10 50 Z" fill="#475569"/><path d="M10 33 L88 33 L85 36 L10 36 Z" fill="#38bdf8"/><path d="M25 33 L32 20 L68 20 L78 33 Z" fill="#5b21b6"/></svg>
         Yachten & Boote
-      </label>
-
-      <label class="filter-item">
-        <input type="checkbox" id="filter-relays" checked onchange="renderRelayStations()">
-        <svg class="filter-icon-preview" viewBox="0 0 50 45"><polygon points="10,5 40,5 45,40 5,40" fill="#fef08a" stroke="#ca8a04" stroke-width="2"/><text x="25" y="27" font-family="Arial, sans-serif" font-weight="bold" font-size="12" fill="#166534" text-anchor="middle">TCP</text></svg>
-        Funkbrücken
       </label>
     </div>
   </div>
@@ -396,6 +405,11 @@
   const SUPA_URL = "https://acharyaisxfpmvejmhho.supabase.co";
   const SUPA_ANON = "sb_publishable_-ylVCQEcJiDn41pWdVIRlA_PGekzQI-";
 
+  // Anzeigezeitraum: alle Einträge der letzten 24 Stunden
+  const DATA_HOURS = 24;
+  // Neuladen der Karte, jede Minute (der Sammler schreibt alle 5 Minuten)
+  const REFRESH_MS = 60 * 1000;
+
   const map = L.map('map').setView([50.7374, 7.0982], 6);
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -405,7 +419,6 @@
 
   const markers = {};
   const stationCategories = {};
-  const relayMarkers = {};
 
   let activeSearchCall = null;
   let previousMapView = null;
@@ -435,12 +448,12 @@
     }));
   }
 
-  // Fährt die Karte zur Position des aktiven TG-313-Sprechers
+  // Fährt die Karte zur letzten Position des aktiven TG-313-Sprechers
   async function focusOnTalker(callsign) {
     if (!callsign || callsign.includes('Keine')) return;
     if (activeSearchCall) return; // Während einer Suche nicht springen
     try {
-      const rows = await fetchHistory(1, callsign.split('-')[0]);
+      const rows = await fetchHistory(DATA_HOURS, callsign.split('-')[0]);
       if (!rows.length) return;
       const last = rows[rows.length - 1];
       map.flyTo([last.lat, last.lon], 10, { duration: 1.5 });
@@ -449,109 +462,20 @@
     }
   }
 
-  const connectedRelays = [
-    { callsign: "DL0SL", lat: 48.841667, lon: 12.980556 },
-    { callsign: "DL0IAW", lat: 49.18684, lon: 7.36953 }
-  ];
-
-  function renderRelayStations() {
-    const showRelays = document.getElementById('filter-relays').checked;
-
-    connectedRelays.forEach(relay => {
-      if (!showRelays) {
-        if (relayMarkers[relay.callsign] && map.hasLayer(relayMarkers[relay.callsign])) {
-          map.removeLayer(relayMarkers[relay.callsign]);
-        }
-        return;
-      }
-
-      const baseRelayCall = relay.callsign.split('-')[0].trim().toUpperCase();
-      const baseActiveTalker = currentActiveTalker ? currentActiveTalker.split('-')[0].trim().toUpperCase() : '';
-      const isSpeaking = (baseActiveTalker && baseRelayCall === baseActiveTalker);
-
-      let iconHtml;
-      if (isSpeaking) {
-        iconHtml = `
-          <div class="aprs-marker-wrapper">
-            <svg class="aprs-active-lamp-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="18" cy="18" r="14" fill="#22c55e" stroke="#ffffff" stroke-width="3"/>
-              <circle cx="13" cy="13" r="4" fill="#86efac" opacity="0.8"/>
-            </svg>
-            <span class="aprs-label" style="border-color: #22c55e;">${relay.callsign} (Brücke)</span>
-          </div>`;
-      } else {
-        iconHtml = `
-          <div class="aprs-marker-wrapper">
-            <svg class="aprs-icon-svg" viewBox="0 0 50 45" xmlns="http://www.w3.org/2000/svg">
-              <polygon points="10,5 40,5 45,40 5,40" fill="#fef08a" stroke="#ca8a04" stroke-width="2"/>
-              <text x="25" y="19" font-family="Arial, sans-serif" font-weight="bold" font-size="11" fill="#166534" text-anchor="middle">TCP</text>
-              <text x="25" y="33" font-family="Arial, sans-serif" font-weight="bold" font-size="11" fill="#166534" text-anchor="middle">IP</text>
-            </svg>
-            <span class="aprs-label">${relay.callsign} (Brücke)</span>
-          </div>`;
-      }
-
-      const customIcon = L.divIcon({
-        html: iconHtml,
-        className: '',
-        iconSize: [44, 48],
-        iconAnchor: [22, 24],
-        popupAnchor: [0, -20]
-      });
-
-      if (relayMarkers[relay.callsign]) {
-        relayMarkers[relay.callsign].setIcon(customIcon);
-        if (!map.hasLayer(relayMarkers[relay.callsign])) {
-          map.addLayer(relayMarkers[relay.callsign]);
-        }
-      } else {
-        const marker = L.marker([relay.lat, relay.lon], { icon: customIcon })
-          .bindPopup(`
-            <div class="custom-popup">
-              <h4 style="margin:0 0 5px 0;">Relais ${relay.callsign}</h4>
-              <p style="margin:0; font-size: 13px;"><b>Position:</b> ${relay.lat}, ${relay.lon}</p>
-              <p style="margin:2px 0 0 0; font-size: 12px; color: #64748b;">Verbunden mit TG 313</p>
-            </div>
-          `)
-          .addTo(map);
-        relayMarkers[relay.callsign] = marker;
-      }
-    });
-  }
-
   function saveUserSettings() {
-    const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
-    const filterRv = document.getElementById('filter-rv').checked;
-    const filterBoats = document.getElementById('filter-boats').checked;
-    const filterRelays = document.getElementById('filter-relays').checked;
-
-    localStorage.setItem('aprs_time_mode', selectedMode);
-    localStorage.setItem('aprs_filter_rv', filterRv);
-    localStorage.setItem('aprs_filter_boats', filterBoats);
-    localStorage.setItem('aprs_filter_relays', filterRelays);
+    localStorage.setItem('aprs_filter_rv', document.getElementById('filter-rv').checked);
+    localStorage.setItem('aprs_filter_boats', document.getElementById('filter-boats').checked);
   }
 
   function loadUserSettings() {
-    const savedMode = localStorage.getItem('aprs_time_mode');
     const savedRv = localStorage.getItem('aprs_filter_rv');
     const savedBoats = localStorage.getItem('aprs_filter_boats');
-    const savedRelays = localStorage.getItem('aprs_filter_relays');
-
-    if (savedMode) {
-      const radioToSelect = document.querySelector(`input[name="time-mode"][value="${savedMode}"]`);
-      if (radioToSelect) radioToSelect.checked = true;
-    }
 
     if (savedRv !== null) {
       document.getElementById('filter-rv').checked = (savedRv === 'true');
     }
-
     if (savedBoats !== null) {
       document.getElementById('filter-boats').checked = (savedBoats === 'true');
-    }
-
-    if (savedRelays !== null) {
-      document.getElementById('filter-relays').checked = (savedRelays === 'true');
     }
   }
 
@@ -684,7 +608,7 @@
     clearAllMarkers();
 
     try {
-      const historyPoints = await fetchHistory(24, query);
+      const historyPoints = await fetchHistory(DATA_HOURS, query);
       if (Array.isArray(historyPoints) && historyPoints.length > 0) {
         const lastPoint = historyPoints[historyPoints.length - 1];
         const category = detectCategory(lastPoint.symbol || '', '');
@@ -708,7 +632,7 @@
       console.warn("Datenbank-Suche fehlgeschlagen:", e);
     }
 
-    alert(`Keine Treffer für Fragment oder Rufzeichen "${query}" gefunden.`);
+    alert(`Keine Treffer für Fragment oder Rufzeichen "${query}" in den letzten 24 Stunden gefunden.`);
     resetSearch();
   }
 
@@ -724,32 +648,33 @@
       previousMapView = null;
     }
 
-    handleModeChange();
+    loadData();
   }
 
-  async function handleModeChange() {
-    saveUserSettings();
-
-    if (activeSearchCall) {
-      activeSearchCall = null;
-      document.getElementById('search-input').value = '';
-      document.getElementById('reset-search-btn').style.display = 'none';
-    }
-
-    const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
-    clearAllMarkers();
-
+  // Lädt alle Stationen der letzten 24 Stunden und zeigt sie auf der Karte an
+  async function loadData() {
     const ledIndicator = document.getElementById('led-indicator');
     const statusText = document.getElementById('status-text');
 
-    const hoursParam = (selectedMode === 'live') ? 1 : 24;
+    clearAllMarkers();
 
     try {
-      const allData = await fetchHistory(hoursParam);
+      const allData = await fetchHistory(DATA_HOURS);
 
       ledIndicator.classList.add('online');
-      statusText.innerText = (selectedMode === '24h') ? "HISTORIE (24h)" : "LIVEDARSTELLUNG (1 Std.)";
+      statusText.innerText = "AKTUELL (letzte 24 Std.)";
 
+      // Neuesten Zeitstempel für den Hinweis ermitteln
+      const newest = allData.reduce((m, p) => (p.time && p.time > m ? p.time : m), '');
+      if (newest) {
+        document.getElementById('data-stand').innerText =
+          new Date(newest).toLocaleString('de-DE', {
+            day: '2-digit', month: '2-digit', year: 'numeric',
+            hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin'
+          }) + ' Uhr';
+      }
+
+      // Pro Rufzeichen nur die letzte Position anzeigen
       const grouped = {};
       allData.forEach(pt => {
         if (!grouped[pt.callsign]) grouped[pt.callsign] = [];
@@ -787,17 +712,13 @@
 
   // Initialisierung beim Laden der Seite
   loadUserSettings();
-  handleModeChange();
-  renderRelayStations();
+  loadData();
 
   setInterval(() => {
     if (!activeSearchCall) {
-      const selectedMode = document.querySelector('input[name="time-mode"]:checked').value;
-      if (selectedMode === 'live') {
-        handleModeChange();
-      }
+      loadData();
     }
-  }, 15000);
+  }, REFRESH_MS);
 </script>
 
 <!-- Skript für die Status-Leiste der TG 313 (Mehrfach-Talker-Unterstützung) -->
@@ -845,8 +766,6 @@ async function updateTGStatus() {
                     const cat = stationCategories[cs] || 'other';
                     markers[cs].setIcon(createCustomIcon(cat, cs));
                 });
-
-                renderRelayStations();
             }
 
             lamp.className = 'tg-status-lamp active';
@@ -866,7 +785,6 @@ async function updateTGStatus() {
                         const cat = stationCategories[cs] || 'other';
                         markers[cs].setIcon(createCustomIcon(cat, cs));
                     });
-                    renderRelayStations();
                 }
 
                 lamp.className = 'tg-status-lamp inactive';
