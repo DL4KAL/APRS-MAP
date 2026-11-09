@@ -562,7 +562,7 @@
     });
   }
 
-  function applyCategoryFilter() {
+    function applyCategoryFilter() {
     saveUserSettings();
 
     if (activeSearchCall) return;
@@ -574,12 +574,9 @@
       const cat = stationCategories[callsign];
       const marker = markers[callsign];
 
-      let isVisible = false;
-      if (cat === 'rv' && showRv) isVisible = true;
-      if (cat === 'boats' && showBoats) isVisible = true;
-      if (cat === 'other' && (showRv || showBoats)) isVisible = true;
+      const visible = (cat === 'rv' && showRv) || (cat === 'boats' && showBoats);
 
-      if (isVisible) {
+      if (visible) {
         if (!map.hasLayer(marker)) map.addLayer(marker);
       } else {
         if (map.hasLayer(marker)) map.removeLayer(marker);
