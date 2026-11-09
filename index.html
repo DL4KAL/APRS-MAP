@@ -11,8 +11,8 @@
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://DL4KAL.github.io/APRS-MAP/">
 
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
     * {
@@ -653,4 +653,177 @@
     loadData();
   }
 
-  // Lädt alle Stationen
+  // Lädt alle Stationen der letzten 24 Stunden und zeigt sie auf der Karte an
+  async function loadData() {
+    const ledIndicator = document.getElementById('led-indicator');
+    const statusText = document.getElementById('status-text');
+
+    clearAllMarkers();
+
+    try {
+      const allData = await fetchHistory(DATA_HOURS);
+
+      ledIndicator.classList.add('online');
+      statusText.innerText = "AKTUELL (letzte 24 Std.)";
+
+      // Zeitraum und Aktualität für den Hinweis ermitteln
+      const toDate = (s) => new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s + 'Z');
+      const fmt = (d) => d.toLocaleString('de-DE', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin'
+      }) + ' Uhr';
+
+      const times = allData.map(p => p.time).filter(Boolean).map(toDate).sort((a, b) => a - b);
+      const standEl = document.getElementById('data-stand');
+      const rangeEl = document.getElementById('data-range');
+      const warnEl = document.getElementById('data-warn');
+
+      if (times.length) {
+        const newest = times[times.length - 1];
+        const oldest = times[0];
+        const ageMin = Math.round((Date.now() - newest.getTime()) / 60000);
+        standEl.innerText = `${fmt(newest)} (vor ${ageMin} Min.)`;
+        rangeEl.innerText = `${fmt(oldest)} bis ${fmt(newest)}`;
+        warnEl.style.display = ageMin > 15 ? 'block' : 'none';
+      } else {
+        standEl.innerText = 'keine Daten';
+        rangeEl.innerText = '–';
+        warnEl.style.display = 'block';
+      }
+
+      // Pro Rufzeichen nur die letzte Position anzeigen
+      const grouped = {};
+      allData.forEach(pt => {
+        if (!grouped[pt.callsign]) grouped[pt.callsign] = [];
+        grouped[pt.callsign].push(pt);
+      });
+
+      Object.keys(grouped).forEach(callsign => {
+        const pts = grouped[callsign];
+        if (pts.length === 0) return;
+
+        const lastPt = pts[pts.length - 1];
+        const category = detectCategory(lastPt.symbol || '');
+        stationCategories[callsign] = category;
+
+        const marker = L.marker([lastPt.lat, lastPt.lon], { icon: createCustomIcon(category, callsign) })
+          .bindPopup(`
+            <div class="custom-popup">
+              <h4 style="margin:0 0 5px 0;">${callsign}</h4>
+              <p style="margin:0; font-size: 13px;"><b>Position:</b> ${lastPt.lat.toFixed(5)}, ${lastPt.lon.toFixed(5)}</p>
+              <p style="margin:2px 0 0 0; font-size: 12px; color: #64748b;">Zeit: ${lastPt.time || 'Aktuell'}</p>
+            </div>
+          `);
+
+        markers[callsign] = marker;
+      });
+
+      applyCategoryFilter();
+
+    } catch (error) {
+      console.error("Fehler beim Abrufen der Daten:", error);
+      ledIndicator.classList.remove('online');
+      statusText.innerText = "OFFLINE";
+    }
+  }
+
+  // Initialisierung beim Laden der Seite
+  loadUserSettings();
+  loadData();
+
+  setInterval(() => {
+    if (!activeSearchCall) {
+      loadData();
+    }
+  }, REFRESH_MS);
+</script>
+
+<!-- Skript für die Status-Leiste der TG 313 (Mehrfach-Talker-Unterstützung) -->
+<script>
+let lastActiveTime = Date.now();
+let activeTalkersList = [];
+let talkerIndex = 0;
+
+async function updateTGStatus() {
+    try {
+        const response = await fetch('https://fm-proxy-e2dz.onrender.com/api/tg/313');
+        const result = await response.json();
+
+        const lamp = document.getElementById('tg-lamp');
+        const text = document.getElementById('tg-text');
+
+        activeTalkersList = [];
+
+        if (result.success && result.data && result.data.length > 0) {
+            result.data.forEach(item => {
+                const call = item.col1 || '';
+                if (call && !call.includes('Lade') && !call.includes('Keine')) {
+                    if (!activeTalkersList.includes(call)) {
+                        activeTalkersList.push(call);
+                    }
+                }
+            });
+        }
+
+        if (activeTalkersList.length > 0) {
+            lastActiveTime = Date.now();
+
+            if (talkerIndex >= activeTalkersList.length) {
+                talkerIndex = 0;
+            }
+
+            const newTalker = activeTalkersList[talkerIndex];
+
+            if (currentActiveTalker !== newTalker) {
+                currentActiveTalker = newTalker;
+
+                focusOnTalker(newTalker);
+
+                Object.keys(markers).forEach(cs => {
+                    const cat = stationCategories[cs] || 'other';
+                    markers[cs].setIcon(createCustomIcon(cat, cs));
+                });
+            }
+
+            lamp.className = 'tg-status-lamp active';
+
+            if (activeTalkersList.length > 1) {
+                text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313 <span style="font-size: 11px; color: #94a3b8;">(${talkerIndex + 1}/${activeTalkersList.length})</span>`;
+            } else {
+                text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313`;
+            }
+
+        } else {
+            if (Date.now() - lastActiveTime > 1200) {
+                if (currentActiveTalker !== null) {
+                    currentActiveTalker = null;
+
+                    Object.keys(markers).forEach(cs => {
+                        const cat = stationCategories[cs] || 'other';
+                        markers[cs].setIcon(createCustomIcon(cat, cs));
+                    });
+                }
+
+                lamp.className = 'tg-status-lamp inactive';
+                text.innerText = "TG 313 inaktiv";
+            }
+        }
+
+    } catch (error) {
+        console.error('Fehler beim Abrufen des TG-Status:', error);
+    }
+}
+
+updateTGStatus();
+setInterval(updateTGStatus, 1500);
+
+setInterval(() => {
+    if (activeTalkersList.length > 1) {
+        talkerIndex = (talkerIndex + 1) % activeTalkersList.length;
+        updateTGStatus();
+    }
+}, 3000);
+</script>
+
+</body>
+</html>
