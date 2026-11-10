@@ -363,7 +363,7 @@
     <div class="info-box">
       <strong>Welche Daten werden angezeigt?</strong><br>
       Die APRS-Positionen werden alle 5 Minuten neu abgefragt und gespeichert.
-      Angezeigt werden Stationen mit der SSID -7 der letzten 24 Stunden. Ältere Einträge werden
+      Angezeigt werden Stationen mit der SSID -9 der letzten 24 Stunden. Ältere Einträge werden
       nicht mehr dargestellt und automatisch aus der Datenbank entfernt.
       <span class="stand">Zeitraum der Anzeige: <span id="data-range">wird geladen…</span></span>
       <span class="stand">Neuester Datensatz: <span id="data-stand">wird geladen…</span></span>
@@ -411,8 +411,8 @@
 
   // Anzeigezeitraum: alle Einträge der letzten 24 Stunden
   const DATA_HOURS = 24;
-  // Nur Stationen mit dieser SSID werden angezeigt (Rufzeichen endet auf "-7")
-  const SSID_SUFFIX = "-7";
+  // Nur Stationen mit dieser SSID werden angezeigt (Rufzeichen endet auf "-9")
+  const SSID_SUFFIX = "-9";
   // Neuladen der Karte, jede Minute (der Sammler schreibt alle 5 Minuten)
   const REFRESH_MS = 60 * 1000;
 
@@ -430,12 +430,12 @@
   let previousMapView = null;
   let currentActiveTalker = null;
 
-  // Lädt Positionen seitenweise über offset. Nur Rufzeichen mit SSID -7.
+  // Lädt Positionen seitenweise über offset. Nur Rufzeichen mit der SSID aus SSID_SUFFIX.
   // Supabase liefert max. 1000 Zeilen pro Anfrage, deshalb wird blockweise geladen.
   async function fetchHistory(hours, callFragment) {
     const since = new Date(Date.now() - hours * 3600e3).toISOString();
 
-    // SSID-Filter: Rufzeichen muss auf "-7" enden
+    // SSID-Filter: Rufzeichen muss auf SSID_SUFFIX enden
     let filter = `callsign=like.*${encodeURIComponent(SSID_SUFFIX)}`;
     if (callFragment) {
       const frag = encodeURIComponent(callFragment);
@@ -648,7 +648,7 @@
       console.warn("Datenbank-Suche fehlgeschlagen:", e);
     }
 
-    alert(`Keine Treffer für "${query}" mit SSID -7 in den letzten 24 Stunden gefunden.`);
+    alert(`Keine Treffer für "${query}" mit SSID -9 in den letzten 24 Stunden gefunden.`);
     resetSearch();
   }
 
@@ -667,7 +667,7 @@
     loadData();
   }
 
-  // Lädt alle Stationen mit SSID -7 der letzten 24 Stunden und zeigt sie auf der Karte an
+  // Lädt alle Stationen mit der gewählten SSID der letzten 24 Stunden und zeigt sie auf der Karte an
   async function loadData() {
     const ledIndicator = document.getElementById('led-indicator');
     const statusText = document.getElementById('status-text');
