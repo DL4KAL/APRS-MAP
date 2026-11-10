@@ -362,13 +362,13 @@
   <div id="aprs-controls">
     <div class="info-box">
       <strong>Welche Daten werden angezeigt?</strong><br>
-      Die APRS-Positionen werden alle 5 Minuten neu abgefragt und gespeichert.
+      Die APRS-Positionen werden stündlich neu abgefragt und gespeichert.
       Angezeigt werden Stationen mit der SSID -9 der letzten 24 Stunden. Ältere Einträge werden
       nicht mehr dargestellt und automatisch aus der Datenbank entfernt.
       <span class="stand">Zeitraum der Anzeige: <span id="data-range">wird geladen…</span></span>
       <span class="stand">Neuester Datensatz: <span id="data-stand">wird geladen…</span></span>
       <span id="data-warn" style="display:none; margin-top:6px; color:#b91c1c; font-weight:bold;">
-        ⚠ Seit über 15 Minuten keine neuen Daten. Der Sammler läuft vermutlich nicht.
+        ⚠ Seit über 75 Minuten keine neuen Daten. Der Sammler läuft vermutlich nicht.
       </span>
     </div>
 
@@ -413,7 +413,7 @@
   const DATA_HOURS = 24;
   // Nur Stationen mit dieser SSID werden angezeigt (Rufzeichen endet auf "-9")
   const SSID_SUFFIX = "-9";
-  // Neuladen der Karte, jede Minute (der Sammler schreibt alle 5 Minuten)
+  // Neuladen der Karte, jede Minute (der Sammler schreibt stündlich)
   const REFRESH_MS = 60 * 1000;
 
   const map = L.map('map').setView([50.7374, 7.0982], 6);
@@ -698,7 +698,7 @@
         const ageMin = Math.round((Date.now() - newest.getTime()) / 60000);
         standEl.innerText = `${fmt(newest)} (vor ${ageMin} Min.)`;
         rangeEl.innerText = `${fmt(oldest)} bis ${fmt(newest)}`;
-        warnEl.style.display = ageMin > 15 ? 'block' : 'none';
+        warnEl.style.display = ageMin > 75 ? 'block' : 'none';
       } else {
         standEl.innerText = 'keine Daten';
         rangeEl.innerText = '–';
