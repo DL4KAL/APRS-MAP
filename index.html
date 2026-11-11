@@ -6,13 +6,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- SEO Meta-Tags -->
-  <title>Live APRS Karte – Realtime Tracking für Amateurfunk & DMR</title>
-  <meta name="description" content="Interaktive Live-APRS-Karte zur Visualisierung von Amateurfunk-Stationen, Wohnmobilen und Booten sowie der Status des FM-Funknetzes TG 313 in Echtzeit.">
+  <title>APRS Live-Ticker – Realtime Datenfluss</title>
+  <meta name="description" content="Echtzeit-Laufband des APRS-Datenflusses für Amateurfunk und mobile Stationen.">
   <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://DL4KAL.github.io/APRS-MAP/">
-
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <style>
     * {
@@ -21,138 +17,57 @@
 
     body {
       margin: 0;
-      padding: 10px;
+      padding: 20px;
       background-color: #0f172a;
       font-family: Arial, sans-serif;
-    }
-
-    #tg-status-container {
-      width: 100%;
-      max-width: 900px;
-      margin: 0 auto 10px auto;
-      padding: 12px 20px;
-      background-color: #1e293b;
       color: #ffffff;
-      border-radius: 8px;
-      font-family: Arial, sans-serif;
       display: flex;
-      align-items: center;
-      gap: 15px;
-      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+      flex-direction: column;
+      justify-content: center;
+      min-height: 100vh;
     }
 
-    .tg-status-lamp {
-      width: 20px;
-      height: 20px;
-      border-radius: 50%;
-      display: inline-block;
-      flex-shrink: 0;
-      transition: all 0.3s ease;
-    }
-
-    .tg-status-lamp.inactive {
-      background-color: #dc2626;
-      box-shadow: 0 0 8px #dc2626;
-    }
-
-    .tg-status-lamp.active {
-      background-color: #22c55e;
-      box-shadow: 0 0 12px #22c55e, 0 0 20px #22c55e;
-      animation: pulse 1s infinite;
-    }
-
-    .tg-status-text {
-      font-size: 15px;
-      font-weight: bold;
-      letter-spacing: 0.5px;
-    }
-
-    #aprs-container {
+    .ticker-wrapper {
       width: 100%;
-      max-width: 900px;
+      max-width: 1100px;
       margin: 0 auto;
+      background-color: #1e293b;
       border-radius: 8px;
+      border: 1px solid #334155;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.4);
       overflow: hidden;
-      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
     }
 
-    #aprs-header {
+    .ticker-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 15px;
+      padding: 12px 20px;
       background-color: #0f172a;
-      color: #ffffff;
-      border-top-left-radius: 8px;
-      border-top-right-radius: 8px;
-    }
-
-    #aprs-search-bar {
-      display: flex;
-      gap: 10px;
-      padding: 10px 15px;
-      background-color: #1e293b;
       border-bottom: 1px solid #334155;
-      flex-wrap: wrap;
     }
 
-    #search-input {
-      flex: 1;
-      min-width: 200px;
-      padding: 10px 12px;
+    .ticker-title {
       font-size: 16px;
-      border: 1px solid #475569;
-      border-radius: 6px;
-      background-color: #0f172a;
-      color: #ffffff;
-      text-transform: uppercase;
-    }
-
-    #search-input:focus {
-      outline: none;
-      border-color: #38bdf8;
-    }
-
-    .search-btn, .reset-btn {
-      padding: 10px 18px;
-      font-size: 14px;
       font-weight: bold;
-      color: #ffffff;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      transition: background-color 0.2s;
-      min-height: 42px;
-    }
-
-    .search-btn {
-      background-color: #2563eb;
-    }
-
-    .search-btn:hover {
-      background-color: #1d4ed8;
-    }
-
-    .reset-btn {
-      background-color: #475569;
-      display: none;
-    }
-
-    .reset-btn:hover {
-      background-color: #334155;
+      letter-spacing: 0.5px;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 10px;
     }
 
     .status-badge {
       display: inline-flex;
       align-items: center;
-      gap: 10px;
-      font-size: 14px;
+      gap: 8px;
+      font-size: 13px;
       font-weight: bold;
     }
 
     .led-lamp {
-      width: 12px;
-      height: 12px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
       background-color: #dc2626;
       box-shadow: 0 0 6px #dc2626;
@@ -161,7 +76,7 @@
 
     .led-lamp.online {
       background-color: #16a34a;
-      box-shadow: 0 0 10px #22c55e, 0 0 20px #22c55e;
+      box-shadow: 0 0 10px #22c55e;
       animation: pulse 2s infinite;
     }
 
@@ -171,671 +86,172 @@
       100% { transform: scale(0.95); opacity: 0.8; }
     }
 
-    #map {
-      height: 300px;
-      min-height: 300px;
-      max-height: 300px;
+    /* Laufband-Container */
+    .ticker-container {
+      position: relative;
       width: 100%;
-      border-left: 1px solid #cbd5e1;
-      border-right: 1px solid #cbd5e1;
-      z-index: 1;
-    }
-
-    #aprs-controls {
-      display: flex;
-      flex-direction: column;
-      background-color: #f1f5f9;
-      border: 1px solid #cbd5e1;
-      border-bottom-left-radius: 8px;
-      border-bottom-right-radius: 8px;
-    }
-
-    .info-box {
-      padding: 12px 15px;
-      background-color: #e2e8f0;
-      border-bottom: 1px solid #cbd5e1;
-      font-size: 13px;
-      line-height: 1.5;
-      color: #334155;
-    }
-
-    .info-box strong {
-      color: #0f172a;
-    }
-
-    .info-box .stand {
-      display: block;
-      margin-top: 6px;
-      font-size: 12px;
-      color: #475569;
-    }
-
-    .control-row {
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-      padding: 12px 15px;
-    }
-
-    .control-row.top-border {
-      border-top: 1px solid #e2e8f0;
-    }
-
-    .control-group-title {
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      color: #64748b;
-      font-weight: bold;
-      width: 100%;
-      margin-bottom: -2px;
-    }
-
-    .filter-item {
+      height: 60px;
+      background: #1e293b;
+      overflow: hidden;
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-size: 14px;
-      font-weight: bold;
-      color: #334155;
       cursor: pointer;
-      user-select: none;
-      padding: 4px 0;
     }
 
-    .filter-item input[type="checkbox"] {
-      width: 20px;
-      height: 20px;
-      cursor: pointer;
-      accent-color: #0f172a;
-    }
-
-    .filter-icon-preview {
-      width: 22px;
-      height: 18px;
-      vertical-align: middle;
-    }
-
-    .aprs-marker-wrapper {
+    .ticker-track {
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      text-align: center;
-    }
-
-    .aprs-icon-svg {
-      width: 42px;
-      height: 32px;
-      filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.4));
-    }
-
-    .aprs-active-lamp-svg {
-      width: 36px;
-      height: 36px;
-      filter: drop-shadow(0px 0px 8px #22c55e);
-      animation: pulse 1s infinite;
-    }
-
-    .aprs-label {
-      background-color: rgba(15, 23, 42, 0.85);
-      color: #ffffff;
-      font-size: 10px;
-      font-weight: bold;
-      padding: 1px 4px;
-      border-radius: 3px;
-      margin-top: 1px;
       white-space: nowrap;
-      border: 1px solid rgba(255,255,255,0.3);
-      box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+      will-change: transform;
+      animation: scrollTicker 70s linear infinite;
     }
 
-    .custom-popup .leaflet-popup-content-wrapper {
-      background: #f8fafc;
-      color: #0f172a;
-      border-radius: 6px;
+    /* Bei Mouseover anhalten */
+    .ticker-container:hover .ticker-track {
+      animation-play-state: paused;
     }
 
-    @media (max-width: 600px) {
-      body {
-        padding: 5px;
+    @keyframes scrollTicker {
+      0% {
+        transform: translateX(0);
       }
+      100% {
+        transform: translateX(-50%);
+      }
+    }
 
-      #aprs-header {
-        padding: 10px;
-        font-size: 14px;
-      }
+    .ticker-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 25px;
+      font-size: 15px;
+      border-right: 1px solid #334155;
+    }
 
-      #aprs-search-bar {
-        flex-direction: column;
-        gap: 8px;
-      }
+    .ticker-time {
+      color: #94a3b8;
+      font-size: 13px;
+      font-family: monospace;
+    }
 
-      #search-input {
-        width: 100%;
-      }
+    /* Klickbares Rufzeichen */
+    .ticker-call {
+      color: #38bdf8;
+      font-weight: bold;
+      text-decoration: underline;
+      cursor: pointer;
+    }
 
-      .search-btn, .reset-btn {
-        width: 100%;
-      }
+    .ticker-call:hover {
+      color: #93c5fd;
+    }
 
-      .control-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 10px;
-      }
+    .ticker-coords {
+      color: #94a3b8;
+      font-size: 13px;
+      font-family: monospace;
+    }
 
-      .filter-item {
-        width: 100%;
-      }
-
-      #tg-status-container {
-        padding: 10px 12px;
-      }
-
-      .tg-status-text {
-        font-size: 13px;
-      }
+    .ticker-comment {
+      color: #cbd5e1;
+      font-style: italic;
     }
   </style>
 </head>
 <body>
 
-<!-- Dynamische Status-Anzeige für TG 313 (oben, damit sie ohne Scrollen sichtbar ist) -->
-<div id="tg-status-container">
-    <div id="tg-lamp" class="tg-status-lamp inactive"></div>
-    <div id="tg-text" class="tg-status-text">FM-Funknetz TG 313 inaktiv</div>
-</div>
-
-<div id="aprs-container">
-  <div id="aprs-header">
-    <strong>Live APRS Karte</strong>
+<div class="ticker-wrapper">
+  <div class="ticker-header">
+    <div class="ticker-title">
+      <span>⚡ APRS Live-Datenstrom Ticker</span>
+    </div>
     <div class="status-badge">
       <div id="led-indicator" class="led-lamp"></div>
       <span id="status-text">OFFLINE</span>
     </div>
   </div>
 
-  <div id="aprs-search-bar">
-    <input type="text" id="search-input" placeholder="Call-Fragment suchen..." onkeyup="if(event.key==='Enter') searchCallsign()">
-    <button class="search-btn" onclick="searchCallsign()">Suchen</button>
-    <button id="reset-search-btn" class="reset-btn" onclick="resetSearch()">Zurück zur Übersicht</button>
-  </div>
-
-  <div id="map"></div>
-
-  <div id="aprs-controls">
-    <div class="info-box">
-      <strong>Welche Daten werden angezeigt?</strong><br>
-      Die APRS-Positionen werden stündlich neu abgefragt und gespeichert.
-      Angezeigt werden Stationen mit der SSID -9 der letzten 24 Stunden. Ältere Einträge werden
-      nicht mehr dargestellt und automatisch aus der Datenbank entfernt.
-      <span class="stand">Zeitraum der Anzeige: <span id="data-range">wird geladen…</span></span>
-      <span class="stand">Neuester Datensatz: <span id="data-stand">wird geladen…</span></span>
-      <span id="data-warn" style="display:none; margin-top:6px; color:#b91c1c; font-weight:bold;">
-        ⚠ Seit über 75 Minuten keine neuen Daten. Der Sammler läuft vermutlich nicht.
-      </span>
-    </div>
-
-    <div class="control-row top-border">
-      <div class="control-group-title">Kategorien</div>
-      <label class="filter-item">
-        <input type="checkbox" id="filter-rv" checked onchange="applyCategoryFilter()">
-        <svg class="filter-icon-preview" viewBox="0 0 100 60"><path d="M12 22 C12 16, 20 12, 38 12 L70 12 C80 12, 88 18, 92 26 L94 36 L94 44 C94 46, 92 48, 90 48 L12 48 Z" fill="#f8fafc" stroke="#cbd5e1"/><path d="M12 36 L94 36 L94 44 C94 46, 92 48, 90 48 L12 48 Z" fill="#ef4444"/><circle cx="28" cy="48" r="6" fill="#1e293b"/><circle cx="78" cy="48" r="6" fill="#1e293b"/></svg>
-        Wohnmobile
-      </label>
-
-      <label class="filter-item">
-        <input type="checkbox" id="filter-boats" checked onchange="applyCategoryFilter()">
-        <svg class="filter-icon-preview" viewBox="0 0 100 60"><path d="M10 36 L85 36 L72 50 L10 50 Z" fill="#475569"/><path d="M10 33 L88 33 L85 36 L10 36 Z" fill="#38bdf8"/><path d="M25 33 L32 20 L68 20 L78 33 Z" fill="#5b21b6"/></svg>
-        Yachten & Boote
-      </label>
+  <div class="ticker-container">
+    <div id="ticker-track" class="ticker-track">
+      <div class="ticker-item">Lade APRS Datenstrom...</div>
     </div>
   </div>
-</div>
-
-<div style="width: 100%; max-width: 900px; margin: 4px auto 0 auto; text-align: right; font-size: 11px; color: #94a3b8; padding-right: 4px;">
-    Stand des Codes: <span id="file-version">Lade...</span>
 </div>
 
 <script>
-  const modDate = new Date(document.lastModified);
-  const options = { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' };
-  document.getElementById('file-version').innerText = modDate.toLocaleDateString('de-DE', options) + ' Uhr';
-
-  // Supabase-Zugang (öffentlicher Schlüssel, für das Frontend vorgesehen)
+  // Gleicher Supabase-Zugang wie die APRS-Karte
   const SUPA_URL = "https://acharyaisxfpmvejmhho.supabase.co";
   const SUPA_ANON = "sb_publishable_-ylVCQEcJiDn41pWdVIRlA_PGekzQI-";
 
-  // Anzeigezeitraum: alle Einträge der letzten 24 Stunden
-  const DATA_HOURS = 24;
-  // Nur Stationen mit dieser SSID werden angezeigt (Rufzeichen endet auf "-9")
-  const SSID_SUFFIX = "-9";
-  // Neuladen der Karte, jede Minute (der Sammler schreibt stündlich)
+  const HOURS = 1;
   const REFRESH_MS = 60 * 1000;
 
-  const map = L.map('map').setView([50.7374, 7.0982], 6);
+  function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-  }).addTo(map);
+  async function fetchTickerData() {
+    const ledIndicator = document.getElementById('led-indicator');
+    const statusText = document.getElementById('status-text');
+    const track = document.getElementById('ticker-track');
 
-  const markers = {};
-  const stationCategories = {};
+    try {
+      const since = new Date(Date.now() - HOURS * 3600e3).toISOString();
+      const url = `${SUPA_URL}/rest/v1/aprs_history` +
+        `?select=callsign,latitude,longitude,symbol,timestamp` +
+        `&timestamp=gte.${encodeURIComponent(since)}` +
+        `&order=timestamp.desc` +
+        `&limit=50`;
 
-  let activeSearchCall = null;
-  let previousMapView = null;
-  let currentActiveTalker = null;
-
-  // Lädt Positionen seitenweise über offset. Nur Rufzeichen mit der SSID aus SSID_SUFFIX.
-  // Supabase liefert max. 1000 Zeilen pro Anfrage, deshalb wird blockweise geladen.
-  async function fetchHistory(hours, callFragment) {
-    const since = new Date(Date.now() - hours * 3600e3).toISOString();
-
-    // SSID-Filter: Rufzeichen muss auf SSID_SUFFIX enden
-    let filter = `callsign=like.*${encodeURIComponent(SSID_SUFFIX)}`;
-    if (callFragment) {
-      const frag = encodeURIComponent(callFragment);
-      filter = `and=(callsign.ilike.*${frag}*,callsign.like.*${encodeURIComponent(SSID_SUFFIX)})`;
-    }
-
-    const base = `${SUPA_URL}/rest/v1/aprs_history` +
-      `?select=id,callsign,latitude,longitude,symbol,timestamp` +
-      `&timestamp=gte.${encodeURIComponent(since)}` +
-      `&${filter}` +
-      `&order=timestamp.asc,id.asc`;
-
-    const PAGE = 1000;
-    const all = [];
-    for (let offset = 0; offset < 100000; offset += PAGE) {
-      const res = await fetch(`${base}&limit=${PAGE}&offset=${offset}`, {
+      const res = await fetch(url, {
         headers: { apikey: SUPA_ANON, Authorization: `Bearer ${SUPA_ANON}` }
       });
       if (!res.ok) throw new Error("HTTP Fehler " + res.status);
-      const rows = await res.json();
-      all.push(...rows);
-      if (rows.length < PAGE) break;
-    }
-
-    return all.map(r => ({
-      callsign: r.callsign,
-      lat: r.latitude,
-      lon: r.longitude,
-      symbol: r.symbol,
-      time: r.timestamp
-    }));
-  }
-
-  // Fährt die Karte zur letzten Position des aktiven TG-313-Sprechers
-  async function focusOnTalker(callsign) {
-    if (!callsign || callsign.includes('Keine')) return;
-    if (activeSearchCall) return; // Während einer Suche nicht springen
-    try {
-      const rows = await fetchHistory(DATA_HOURS, callsign.split('-')[0]);
-      if (!rows.length) return;
-      const last = rows[rows.length - 1];
-      map.flyTo([last.lat, last.lon], 10, { duration: 1.5 });
-    } catch (e) {
-      console.warn("Fokus auf Sprecher fehlgeschlagen:", e);
-    }
-  }
-
-  function saveUserSettings() {
-    localStorage.setItem('aprs_filter_rv', document.getElementById('filter-rv').checked);
-    localStorage.setItem('aprs_filter_boats', document.getElementById('filter-boats').checked);
-  }
-
-  function loadUserSettings() {
-    const savedRv = localStorage.getItem('aprs_filter_rv');
-    const savedBoats = localStorage.getItem('aprs_filter_boats');
-
-    if (savedRv !== null) {
-      document.getElementById('filter-rv').checked = (savedRv === 'true');
-    }
-    if (savedBoats !== null) {
-      document.getElementById('filter-boats').checked = (savedBoats === 'true');
-    }
-  }
-
-  // Kategorie aus dem Symbolcode ermitteln (letztes Zeichen des Symbols):
-  // Wohnmobile: /r und /R
-  // Yachten:    /y und /Y
-  function detectCategory(symString) {
-    const code = (symString || '').slice(-1);
-    if (code === 'r' || code === 'R') return 'rv';
-    if (code === 'y' || code === 'Y') return 'boats';
-    return 'other';
-  }
-
-  function getSvgIcon(category, isSpeaking) {
-    if (isSpeaking) {
-      return `
-        <svg class="aprs-active-lamp-svg" viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="18" cy="18" r="14" fill="#22c55e" stroke="#ffffff" stroke-width="3"/>
-          <circle cx="13" cy="13" r="4" fill="#86efac" opacity="0.8"/>
-        </svg>`;
-    }
-
-    if (category === 'rv') {
-      return `
-        <svg class="aprs-icon-svg" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="28" cy="48" r="8" fill="#1e293b"/>
-          <circle cx="28" cy="48" r="4" fill="#94a3b8"/>
-          <circle cx="78" cy="48" r="8" fill="#1e293b"/>
-          <circle cx="78" cy="48" r="4" fill="#94a3b8"/>
-          <path d="M12 22 C12 16, 20 12, 38 12 L70 12 C80 12, 88 18, 92 26 L94 36 L94 44 C94 46, 92 48, 90 48 L12 48 Z" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
-          <path d="M12 36 L94 36 L94 44 C94 46, 92 48, 90 48 L12 48 Z" fill="#ef4444"/>
-          <path d="M52 24 L62 24 L62 48 L52 48 Z" fill="#dc2626"/>
-          <rect x="20" y="20" width="22" height="12" rx="2" fill="#2563eb"/>
-          <path d="M68 16 L80 16 C84 16, 88 20, 89 24 L68 24 Z" fill="#3b82f6"/>
-          <rect x="70" y="28" width="14" height="12" rx="2" fill="#2563eb"/>
-        </svg>`;
-    }
-
-    if (category === 'boats') {
-      return `
-        <svg class="aprs-icon-svg" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg">
-          <path d="M10 36 L85 36 L72 50 L10 50 Z" fill="#475569"/>
-          <path d="M10 33 L88 33 L85 36 L10 36 Z" fill="#38bdf8"/>
-          <path d="M25 33 L32 20 L68 20 L78 33 Z" fill="#5b21b6"/>
-          <path d="M28 20 L22 14 L35 14 L32 20 Z" fill="#4c1d95"/>
-          <path d="M38 23 L65 23 L70 30 L38 30 Z" fill="#a5f3fc"/>
-        </svg>`;
-    }
-
-    return `
-      <svg class="aprs-icon-svg" viewBox="0 0 100 60" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="28" cy="46" r="7" fill="#1e293b"/>
-        <circle cx="74" cy="46" r="7" fill="#1e293b"/>
-        <path d="M12 28 C12 28, 22 16, 40 16 L62 16 C72 16, 82 24, 88 28 L92 34 L92 44 L10 44 Z" fill="#16a34a"/>
-        <path d="M30 20 L48 20 L48 28 L22 28 Z" fill="#bbf7d0"/>
-        <path d="M52 20 L66 20 L74 28 L52 28 Z" fill="#bbf7d0"/>
-      </svg>`;
-  }
-
-  function createCustomIcon(category, callsign) {
-    const baseStationCall = callsign.split('-')[0].trim().toUpperCase();
-    const baseActiveTalker = currentActiveTalker ? currentActiveTalker.split('-')[0].trim().toUpperCase() : '';
-
-    const isSpeaking = (baseActiveTalker && baseStationCall === baseActiveTalker);
-    const svgHtml = getSvgIcon(category, isSpeaking);
-
-    const html = `
-      <div class="aprs-marker-wrapper">
-        ${svgHtml}
-        <span class="aprs-label">${callsign}</span>
-      </div>
-    `;
-
-    return L.divIcon({
-      html: html,
-      className: '',
-      iconSize: [44, 48],
-      iconAnchor: [22, 24],
-      popupAnchor: [0, -20]
-    });
-  }
-
-  function applyCategoryFilter() {
-    saveUserSettings();
-
-    if (activeSearchCall) return;
-
-    const showRv = document.getElementById('filter-rv').checked;
-    const showBoats = document.getElementById('filter-boats').checked;
-
-    Object.keys(markers).forEach(callsign => {
-      const cat = stationCategories[callsign];
-      const marker = markers[callsign];
-
-      const visible = (cat === 'rv' && showRv) || (cat === 'boats' && showBoats);
-
-      if (visible) {
-        if (!map.hasLayer(marker)) map.addLayer(marker);
-      } else {
-        if (map.hasLayer(marker)) map.removeLayer(marker);
-      }
-    });
-  }
-
-  function clearAllMarkers() {
-    Object.keys(markers).forEach(cs => {
-      if (map.hasLayer(markers[cs])) map.removeLayer(markers[cs]);
-      delete markers[cs];
-    });
-  }
-
-  async function searchCallsign() {
-    const query = document.getElementById('search-input').value.trim().toUpperCase();
-    if (!query) return;
-
-    if (!activeSearchCall) {
-      previousMapView = {
-        center: map.getCenter(),
-        zoom: map.getZoom()
-      };
-    }
-
-    activeSearchCall = query;
-    document.getElementById('reset-search-btn').style.display = 'inline-block';
-    clearAllMarkers();
-
-    try {
-      const historyPoints = await fetchHistory(DATA_HOURS, query);
-      if (Array.isArray(historyPoints) && historyPoints.length > 0) {
-        const lastPoint = historyPoints[historyPoints.length - 1];
-        const category = detectCategory(lastPoint.symbol || '');
-
-        const marker = L.marker([lastPoint.lat, lastPoint.lon], { icon: createCustomIcon(category, lastPoint.callsign) })
-          .bindPopup(`
-            <div class="custom-popup">
-              <h4 style="margin:0 0 5px 0;">${lastPoint.callsign}</h4>
-              <p style="margin:0; font-size: 13px;"><b>Position:</b> ${lastPoint.lat.toFixed(5)}, ${lastPoint.lon.toFixed(5)}</p>
-            </div>
-          `)
-          .addTo(map);
-
-        markers[lastPoint.callsign] = marker;
-        stationCategories[lastPoint.callsign] = category;
-
-        map.setView([lastPoint.lat, lastPoint.lon], 12);
-        return;
-      }
-    } catch (e) {
-      console.warn("Datenbank-Suche fehlgeschlagen:", e);
-    }
-
-    alert(`Keine Treffer für "${query}" mit SSID -9 in den letzten 24 Stunden gefunden.`);
-    resetSearch();
-  }
-
-  function resetSearch() {
-    activeSearchCall = null;
-    document.getElementById('search-input').value = '';
-    document.getElementById('reset-search-btn').style.display = 'none';
-
-    clearAllMarkers();
-
-    if (previousMapView) {
-      map.setView(previousMapView.center, previousMapView.zoom);
-      previousMapView = null;
-    }
-
-    loadData();
-  }
-
-  // Lädt alle Stationen mit der gewählten SSID der letzten 24 Stunden und zeigt sie auf der Karte an
-  async function loadData() {
-    const ledIndicator = document.getElementById('led-indicator');
-    const statusText = document.getElementById('status-text');
-
-    clearAllMarkers();
-
-    try {
-      const allData = await fetchHistory(DATA_HOURS);
+      const data = await res.json();
 
       ledIndicator.classList.add('online');
-      statusText.innerText = "AKTUELL (letzte 24 Std.)";
+      statusText.innerText = "ONLINE";
 
-      // Zeitraum und Aktualität für den Hinweis ermitteln
-      const toDate = (s) => new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(s) ? s : s + 'Z');
-      const fmt = (d) => d.toLocaleString('de-DE', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Berlin'
-      }) + ' Uhr';
-
-      const times = allData.map(p => p.time).filter(Boolean).map(toDate).sort((a, b) => a - b);
-      const standEl = document.getElementById('data-stand');
-      const rangeEl = document.getElementById('data-range');
-      const warnEl = document.getElementById('data-warn');
-
-      if (times.length) {
-        const newest = times[times.length - 1];
-        const oldest = times[0];
-        const ageMin = Math.round((Date.now() - newest.getTime()) / 60000);
-        standEl.innerText = `${fmt(newest)} (vor ${ageMin} Min.)`;
-        rangeEl.innerText = `${fmt(oldest)} bis ${fmt(newest)}`;
-        warnEl.style.display = ageMin > 75 ? 'block' : 'none';
-      } else {
-        standEl.innerText = 'keine Daten';
-        rangeEl.innerText = '–';
-        warnEl.style.display = 'block';
+      if (!Array.isArray(data) || data.length === 0) {
+        track.innerHTML = `<div class="ticker-item">Keine aktuellen Baken in der letzten Stunde empfangen.</div>`;
+        return;
       }
 
-      // Pro Rufzeichen nur die letzte Position anzeigen
-      const grouped = {};
-      allData.forEach(pt => {
-        if (!grouped[pt.callsign]) grouped[pt.callsign] = [];
-        grouped[pt.callsign].push(pt);
-      });
+      let htmlContent = "";
+      // Doppelt ausgeben, damit das Laufband nahtlos läuft
+      for (let i = 0; i < 2; i++) {
+        data.forEach(item => {
+          const timeStr = item.timestamp
+            ? new Date(item.timestamp).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+            : '';
+          const symbolStr = item.symbol ? `[${escapeHtml(item.symbol)}]` : '';
+          const call = escapeHtml(item.callsign);
+          const cleanCall = encodeURIComponent((item.callsign || '').split('-')[0].trim());
+          const qrzUrl = `https://www.qrz.com/db/${cleanCall}`;
 
-      Object.keys(grouped).forEach(callsign => {
-        const pts = grouped[callsign];
-        if (pts.length === 0) return;
+          htmlContent += `
+            <div class="ticker-item">
+              <span class="ticker-time">[${timeStr}]</span>
+              <span class="ticker-call" onclick="window.open('${qrzUrl}', '_blank')" title="Auf QRZ.com öffnen">${call}</span>
+              <span class="ticker-coords">(${Number(item.latitude).toFixed(4)}, ${Number(item.longitude).toFixed(4)})</span>
+              <span class="ticker-comment">${symbolStr}</span>
+            </div>`;
+        });
+      }
 
-        const lastPt = pts[pts.length - 1];
-        const category = detectCategory(lastPt.symbol || '');
-        stationCategories[callsign] = category;
-
-        const marker = L.marker([lastPt.lat, lastPt.lon], { icon: createCustomIcon(category, callsign) })
-          .bindPopup(`
-            <div class="custom-popup">
-              <h4 style="margin:0 0 5px 0;">${callsign}</h4>
-              <p style="margin:0; font-size: 13px;"><b>Position:</b> ${lastPt.lat.toFixed(5)}, ${lastPt.lon.toFixed(5)}</p>
-              <p style="margin:2px 0 0 0; font-size: 12px; color: #64748b;">Zeit: ${lastPt.time || 'Aktuell'}</p>
-            </div>
-          `);
-
-        markers[callsign] = marker;
-      });
-
-      applyCategoryFilter();
+      track.innerHTML = htmlContent;
 
     } catch (error) {
-      console.error("Fehler beim Abrufen der Daten:", error);
+      console.error("Fehler beim Ticker-Abruf:", error);
       ledIndicator.classList.remove('online');
       statusText.innerText = "OFFLINE";
     }
   }
 
-  // Initialisierung beim Laden der Seite
-  loadUserSettings();
-  loadData();
-
-  setInterval(() => {
-    if (!activeSearchCall) {
-      loadData();
-    }
-  }, REFRESH_MS);
-</script>
-
-<!-- Skript für die Status-Leiste der TG 313 (Mehrfach-Talker-Unterstützung) -->
-<script>
-let lastActiveTime = Date.now();
-let activeTalkersList = [];
-let talkerIndex = 0;
-
-async function updateTGStatus() {
-    try {
-        const response = await fetch('https://fm-proxy-e2dz.onrender.com/api/tg/313');
-        const result = await response.json();
-
-        const lamp = document.getElementById('tg-lamp');
-        const text = document.getElementById('tg-text');
-
-        activeTalkersList = [];
-
-        if (result.success && result.data && result.data.length > 0) {
-            result.data.forEach(item => {
-                const call = item.col1 || '';
-                if (call && !call.includes('Lade') && !call.includes('Keine')) {
-                    if (!activeTalkersList.includes(call)) {
-                        activeTalkersList.push(call);
-                    }
-                }
-            });
-        }
-
-        if (activeTalkersList.length > 0) {
-            lastActiveTime = Date.now();
-
-            if (talkerIndex >= activeTalkersList.length) {
-                talkerIndex = 0;
-            }
-
-            const newTalker = activeTalkersList[talkerIndex];
-
-            if (currentActiveTalker !== newTalker) {
-                currentActiveTalker = newTalker;
-
-                focusOnTalker(newTalker);
-
-                Object.keys(markers).forEach(cs => {
-                    const cat = stationCategories[cs] || 'other';
-                    markers[cs].setIcon(createCustomIcon(cat, cs));
-                });
-            }
-
-            lamp.className = 'tg-status-lamp active';
-
-            if (activeTalkersList.length > 1) {
-                text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313 <span style="font-size: 11px; color: #94a3b8;">(${talkerIndex + 1}/${activeTalkersList.length})</span>`;
-            } else {
-                text.innerHTML = `<span style="color: #22c55e;">${newTalker}</span> aktiv auf TG 313`;
-            }
-
-        } else {
-            if (Date.now() - lastActiveTime > 1200) {
-                if (currentActiveTalker !== null) {
-                    currentActiveTalker = null;
-
-                    Object.keys(markers).forEach(cs => {
-                        const cat = stationCategories[cs] || 'other';
-                        markers[cs].setIcon(createCustomIcon(cat, cs));
-                    });
-                }
-
-                lamp.className = 'tg-status-lamp inactive';
-                text.innerText = "TG 313 inaktiv";
-            }
-        }
-
-    } catch (error) {
-        console.error('Fehler beim Abrufen des TG-Status:', error);
-    }
-}
-
-updateTGStatus();
-setInterval(updateTGStatus, 1500);
-
-setInterval(() => {
-    if (activeTalkersList.length > 1) {
-        talkerIndex = (talkerIndex + 1) % activeTalkersList.length;
-        updateTGStatus();
-    }
-}, 3000);
+  fetchTickerData();
+  setInterval(fetchTickerData, REFRESH_MS);
 </script>
 
 </body>
